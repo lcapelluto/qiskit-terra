@@ -14,11 +14,12 @@
 
 """QuantumCircuit to Pulse scheduler."""
 
-from typing import List, Dict
 from collections import defaultdict
+from copy import deepcopy
+from typing import List, Dict
 
 from qiskit.circuit.measure import Measure
-from qiskit.circuit.quantum_circuit import QuantumCircuit
+from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
 from qiskit.providers.basebackend import BaseBackend
 
@@ -38,6 +39,8 @@ def basic_schedule(circuit: QuantumCircuit, backend: BaseBackend,
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
         push_forward: If True, follow the delayed scheduling policy, else schedule early
+    Returns:
+        New Schedule
     """
     if push_forward:
         return lazy_schedule(circuit, backend)
@@ -53,12 +56,18 @@ def lazy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
     Args:
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
+    Returns:
+        New backward scheduled Schedule
     """
-    import ipdb; ipdb.set_trace()
-    circuit.data.reverse()
-    schedule = greedy_schedule(circuit, backend)
-    # TODO: reverse twice
-    # for something in schedule, times:...
+    circuit_copy = deepcopy(circuit)
+    circuit_copy.data.reverse()
+    reversed_schedule = greedy_schedule(circuit_copy, backend)
+    total_time = max(inst[0] + inst[1].duration for inst in reversed_schedule.instructions)
+    insts = list(reversed_schedule.instructions)
+    insts.reverse()
+    schedule = Schedule()
+    for time, inst in insts:
+        schedule |= inst << (total_time - time - inst.duration)
     return schedule
 
 
@@ -71,6 +80,8 @@ def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
     Args:
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
+    Returns:
+        New forward scheduled Schedule
     """
     schedule = Schedule(name=circuit.name)
 
@@ -91,19 +102,19 @@ def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
         nonlocal schedule
         measures = set()
         for q in measured_qubits:
-            measures.add((meas_map[q]))
+            measures.add(tuple(meas_map[q]))
         for qubits in measures:
             time = max(qubit_time_available[q] for q in qubits)
             cmd = cmd_def.get('measure', qubits)
             schedule |= cmd << time
             update_times(qubits, time + cmd.duration)
+        measured_qubits.clear()
 
     for inst, channels, _ in circuit:
         qubits = [chan.index for chan in channels]
-        time = max(qubit_time_available[q] for q in qubits)
         if isinstance(inst, Barrier):
             for q in qubits:
-                qubit_time_available[q] = time
+                qubit_time_available[q] = max(qubit_time_available[q] for q in qubits)
             continue
         elif isinstance(inst, Measure):
             measured_qubits.update(qubits)
@@ -111,6 +122,7 @@ def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
             if any(q in measured_qubits for q in qubits):
                 add_measures()
             cmd = cmd_def.get(inst.name, qubits, *inst.params)
+            time = max(qubit_time_available[q] for q in qubits)
             schedule |= cmd << time
             update_times(qubits, time + cmd.duration)
     add_measures()
@@ -125,6 +137,8 @@ def format_meas_map(meas_map: List[List[int]]) -> Dict[int, List[int]]:
 
     Args:
         meas_map: Groups of qubits that get measured together, for example: [[0, 1], [2, 3, 4]]
+    Returns:
+        Measure map in map format
     """
     qubit_mapping = {}
     for sublist in meas_map:
