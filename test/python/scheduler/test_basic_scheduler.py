@@ -14,38 +14,49 @@
 
 """Test cases for the pulse scheduler passes."""
 
+from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+from qiskit.scheduler.basic_scheduler import basic_schedule
+
+from qiskit.test.mock import FakeOpenPulse2Q
+from qiskit.test import QiskitTestCase
+
 
 class TestBasicSchedule(QiskitTestCase):
     """Scheduling tests."""
 
     def setUp(self):
-        qr1 = QuantumRegister(1, 'qr1')
-        qr2 = QuantumRegister(2, 'qr2')
-        cr = ClassicalRegister(3, 'cr')
-        qc = QuantumCircuit(qr1, qr2, cr)
-        qc.u1(0.3, qr1[0])
-        qc.u2(0.2, 0.1, qr2[0])
-        qc.u3(0.3, 0.2, 0.1, qr2[1])
-        qc.s(qr2[1])
-        qc.sdg(qr2[1])
-        qc.cx(qr1[0], qr2[1])
-        qc.barrier(qr2)
-        qc.cx(qr2[1], qr1[0])
-        qc.h(qr2[1])
-        qc.x(qr2[1]).c_if(cr, 0)
-        qc.y(qr1[0]).c_if(cr, 1)
-        qc.z(qr1[0]).c_if(cr, 2)
-        qc.barrier(qr1, qr2)
-        qc.measure(qr1[0], cr[0])
-        qc.measure(qr2[0], cr[1])
-        qc.measure(qr2[1], cr[2])
-        # qubits = [Qubit(0, DriveChannel(0), AcquireChannel(0), MeasureChannel(0),
-        #                 control_channels=[ControlChannel(0)]),
-        #           Qubit(1, DriveChannel(1), MeasureChannel(0), AcquireChannel(1))]
-        # registers = [RegisterSlot(i) for i in range(2)]
-        # mem_slots = [MemorySlot(i) for i in range(2)]
-        # self.two_qubit_device = DeviceSpecification(qubits, registers, mem_slots)
-        pass
+        self.backend = FakeOpenPulse2Q()
 
-    def test_basic_schedule():
-        pass
+    def test_forward_pass(self):
+        """Test forward (late) scheduling."""
+        q = QuantumRegister(2)
+        c = ClassicalRegister(2)
+        qc = QuantumCircuit(q, c)
+        qc.x(q[0])
+        qc.x(q[1])
+        qc.barrier(q[1])
+        qc.x(q[1])
+        qc.barrier(q[0], q[1])
+        qc.cx(q[0], q[1])
+        qc.measure(q, c)
+        sched = basic_schedule(qc, self.backend, push_forward=True)
+        # X pulse on q0 should end at the start of the CNOT
+        q0_x_time = sched.instructions[0][0]
+        self.assertTrue(q0_x_time != 0)
+
+    def test_backward_pass(self):
+        """Test backward (early) scheduling."""
+        q = QuantumRegister(2)
+        c = ClassicalRegister(2)
+        qc = QuantumCircuit(q, c)
+        qc.x(q[0])
+        qc.x(q[1])
+        qc.barrier(q[1])
+        qc.x(q[1])
+        qc.barrier(q[0], q[1])
+        qc.cx(q[0], q[1])
+        qc.measure(q, c)
+        sched = basic_schedule(qc, self.backend, push_forward=False)
+        # X pulse on q0 should start at t=0
+        q0_x_time = sched.instructions[0][0]
+        self.assertTrue(q0_x_time == 0)

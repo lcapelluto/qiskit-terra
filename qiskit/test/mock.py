@@ -233,7 +233,9 @@ class FakeOpenPulse2Q(FakeBackend):
             pulse_library=[PulseLibraryItem(name='test_pulse_1', samples=[0.j, 0.1j]),
                            PulseLibraryItem(name='test_pulse_2', samples=[0.j, 0.1j, 1j]),
                            PulseLibraryItem(name='test_pulse_3',
-                                            samples=[0.j, 0.1j, 1j, 0.5 + 0j])],
+                                            samples=[0.j, 0.1j, 1j, 0.5 + 0j]),
+                           PulseLibraryItem(name='test_pulse_4',
+                                            samples=7*[0.j, 0.1j, 1j, 0.5 + 0j])],
             cmd_def=[Command(name='u1', qubits=[0],
                              sequence=[PulseQobjInstruction(name='fc', ch='d0',
                                                             t0=0, phase='-P1*np.pi')]),
@@ -241,18 +243,21 @@ class FakeOpenPulse2Q(FakeBackend):
                              sequence=[PulseQobjInstruction(name='test_pulse_1', ch='d0', t0=0)]),
                      Command(name='u3', qubits=[1],
                              sequence=[PulseQobjInstruction(name='test_pulse_3', ch='d1', t0=0)]),
+                     Command(name='x', qubits=[0],
+                             sequence=[PulseQobjInstruction(name='test_pulse_4', ch='d0', t0=0)]),
+                     Command(name='x', qubits=[1],
+                             sequence=[PulseQobjInstruction(name='test_pulse_4', ch='d1', t0=0)]),
                      Command(name='cx', qubits=[0, 1],
                              sequence=[PulseQobjInstruction(name='test_pulse_1', ch='d0', t0=0),
                                        PulseQobjInstruction(name='test_pulse_2', ch='u0', t0=10),
-                                       PulseQobjInstruction(name='pv', ch='d1',
-                                                            t0=2, val='cos(P2)'),
                                        PulseQobjInstruction(name='test_pulse_1', ch='d1', t0=20),
                                        PulseQobjInstruction(name='fc', ch='d1',
                                                             t0=20, phase=2.1)]),
-                     Command(name='measure', qubits=[0],
+                     Command(name='measure', qubits=[0, 1],
                              sequence=[PulseQobjInstruction(name='test_pulse_1', ch='m0', t0=0),
+                                       PulseQobjInstruction(name='test_pulse_1', ch='m1', t0=0),
                                        PulseQobjInstruction(name='acquire', duration=10, t0=0,
-                                                            qubits=[0], memory_slot=[0])])]
+                                                            qubits=[0, 1], memory_slot=[0, 1])])]
         )
 
         super().__init__(configuration)
