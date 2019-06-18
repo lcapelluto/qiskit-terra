@@ -15,7 +15,7 @@
 """Test cases for the pulse scheduler passes."""
 
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from qiskit.scheduler.basic_scheduler import basic_schedule
+from qiskit.scheduler.basic_scheduler import schedule
 
 from qiskit.test.mock import FakeOpenPulse2Q
 from qiskit.test import QiskitTestCase
@@ -39,7 +39,7 @@ class TestBasicSchedule(QiskitTestCase):
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
-        sched = basic_schedule(qc, self.backend, push_forward=True)
+        sched = schedule(qc, self.backend, push_forward=True)
         # X pulse on q0 should end at the start of the CNOT
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time != 0)
@@ -56,7 +56,7 @@ class TestBasicSchedule(QiskitTestCase):
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
-        sched = basic_schedule(qc, self.backend, push_forward=False)
+        sched = schedule(qc, self.backend, push_forward=False)
         # X pulse on q0 should start at t=0
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time == 0)

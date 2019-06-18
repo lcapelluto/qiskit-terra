@@ -42,6 +42,8 @@ The format is based on [Keep a Changelog].
 -   Decomposition of multiplexed single-qubit unitaries (Option: decompose
     up to a diagonal gate) (\#2600)
 -   ZYZ decomposition for single-qubit unitaries (\#2600)
+-   First basic QuantumCircuit->Pulse Schedule scheduling pass added.
+    (\#2650)
 
 ### Changed
 

@@ -18,6 +18,7 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import List, Dict
 
+from qiskit import QiskitError
 from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
@@ -27,7 +28,7 @@ from qiskit.pulse.cmd_def import CmdDef
 from qiskit.pulse.schedule import Schedule
 
 
-def basic_schedule(circuit: QuantumCircuit, backend: BaseBackend,
+def schedule(circuit: QuantumCircuit, backend: BaseBackend,
                    push_forward: bool = True) -> Schedule:
     """
     Basic scheduling pass from a circuit to a pulse Schedule, using the backend. By default, pulses
@@ -43,11 +44,11 @@ def basic_schedule(circuit: QuantumCircuit, backend: BaseBackend,
         New Schedule
     """
     if push_forward:
-        return lazy_schedule(circuit, backend)
+        return minimize_earliness_schedule(circuit, backend)
     return greedy_schedule(circuit, backend)
 
 
-def lazy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
+def minimize_earliness_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
     """
     Return the input circuit's equivalent pulse Schedule by performing the most basic scheduling
     pass on it. The pulses are "backward scheduled", meaning that pulses are played as early as
@@ -65,13 +66,16 @@ def lazy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
     total_time = max(inst[0] + inst[1].duration for inst in reversed_schedule.instructions)
     insts = list(reversed_schedule.instructions)
     insts.reverse()
-    schedule = Schedule()
+    sched = Schedule()
     for time, inst in insts:
-        schedule |= inst << (total_time - time - inst.duration)
-    return schedule
+        sched |= inst << (total_time - time - inst.duration)
+    return sched
 
 
-def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
+def greedy_schedule(circuit: QuantumCircuit,
+                    backend: Optional[BaseBackend] = None,
+                    cmd_def: Optional[CmdDef] = None,
+                    meas_map: Optional[List[List[int]]] = None) -> Schedule:
     """
     Return the input circuit's equivalent pulse Schedule by performing the most basic scheduling
     pass on it. The pulses are "backward scheduled", meaning that pulses are played as early as
@@ -80,14 +84,22 @@ def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
     Args:
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
+        cmd_def: Command definition list
+        meas_map: Groups of qubits that get measured together
     Returns:
         New forward scheduled Schedule
     """
-    schedule = Schedule(name=circuit.name)
+    sched = Schedule(name=circuit.name)
 
-    defaults = backend.defaults()
-    cmd_def = CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library)
-    meas_map = format_meas_map(backend.configuration().meas_map)
+    if cmd_def == None:
+        if backend == None:
+            raise QiskitError("Must supply either a backend or CmdDef for scheduling passes.")
+        defaults = backend.defaults()
+        cmd_def = CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library)
+    if meas_map == None:
+        if backend == None:
+            raise QiskitError("Must supply either a backend or a meas_map for scheduling passes.")
+        meas_map = format_meas_map(backend.configuration().meas_map)
 
     qubit_time_available = defaultdict(int)
     measured_qubits = set()
@@ -99,35 +111,35 @@ def greedy_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
 
     def add_measures():
         """Based off the Set measured_qubits, add measures to the schedule."""
-        nonlocal schedule
+        nonlocal sched
         measures = set()
         for q in measured_qubits:
             measures.add(tuple(meas_map[q]))
         for qubits in measures:
             time = max(qubit_time_available[q] for q in qubits)
             cmd = cmd_def.get('measure', qubits)
-            schedule |= cmd << time
+            sched |= cmd << time
             update_times(qubits, time + cmd.duration)
         measured_qubits.clear()
 
-    for inst, channels, _ in circuit:
-        qubits = [chan.index for chan in channels]
+    for inst, qregs, _ in circuit:
+        qubits = [chan.index for chan in qregs]
         if isinstance(inst, Barrier):
             for q in qubits:
                 qubit_time_available[q] = max(qubit_time_available[q] for q in qubits)
             continue
-        elif isinstance(inst, Measure):
+        if any(q in measured_qubits for q in qubits):
+            add_measures()
+        if isinstance(inst, Measure):
             measured_qubits.update(qubits)
         else:
-            if any(q in measured_qubits for q in qubits):
-                add_measures()
             cmd = cmd_def.get(inst.name, qubits, *inst.params)
             time = max(qubit_time_available[q] for q in qubits)
-            schedule |= cmd << time
+            sched |= cmd << time
             update_times(qubits, time + cmd.duration)
     add_measures()
 
-    return schedule
+    return sched
 
 
 def format_meas_map(meas_map: List[List[int]]) -> Dict[int, List[int]]:
