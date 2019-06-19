@@ -23,6 +23,7 @@ from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
 from qiskit.providers.basebackend import BaseBackend
+from qiskit import pulse
 from qiskit.pulse.cmd_def import CmdDef
 from qiskit.pulse.schedule import Schedule
 
@@ -76,16 +77,57 @@ def minimize_earliness_schedule(circuit: QuantumCircuit,
     Returns:
         Late scheduled pulse Schedule
     """
-    for i in range(len(circuit.data)):
-        inst, qregs, _ = circuit.data[i]
+    sched = Schedule(name=circuit.name)
 
-    reversed_schedule = greedy_schedule(circuit_copy, backend)
-    total_time = max(inst[0] + inst[1].duration for inst in reversed_schedule.instructions)
-    insts = list(reversed_schedule.instructions)
-    insts.reverse()
-    sched = Schedule()
-    for time, inst in insts:
-        sched |= inst << (total_time - time - inst.duration)
+    qubit_available_until = defaultdict(lambda:float("inf"))
+    measured_qubits = set()
+
+    def update_times(inst_qubits: List[int], shift: int = 0) -> None:
+        """Update the time tracker for all inst_qubits to the given time."""
+        for q in qubit_available_until.keys():
+            if q in inst_qubits:
+                qubit_available_until[q] = 0
+            else:
+                qubit_available_until[q] += shift
+
+    def insert_measures_front():
+        """Based off the Set measured_qubits, add measures to the schedule."""
+        nonlocal sched
+        measures = set()
+        for q in measured_qubits:
+            measures.add(tuple(meas_map[q]))
+        for qubits in measures:
+            cmd = cmd_def.get('measure', qubits)
+            cmd_start_time = min([qubit_available_until[q] for q in qubits]) - cmd.duration
+            if cmd_start_time == float("inf"):
+                cmd_start_time = 0
+            shift_amount = max(0, -cmd_start_time)
+            cmd_start_time = max(cmd_start_time, 0)
+            sched = pulse.ops.union((shift_amount, sched), (cmd_start_time, cmd))
+            update_times(qubits, shift_amount)
+        measured_qubits.clear()
+
+    for i in reversed(range(len(circuit.data))):
+        inst, qregs, _ = circuit.data[i]
+        inst_qubits = [chan.index for chan in qregs]
+        if isinstance(inst, Barrier):
+            update_times(inst_qubits)
+            continue
+        if any(q in measured_qubits for q in inst_qubits):
+            insert_measures_front()
+        if isinstance(inst, Measure):
+            measured_qubits.update(inst_qubits)
+        else:
+            cmd = cmd_def.get(inst.name, inst_qubits, *inst.params)
+            cmd_start_time = min([qubit_available_until[q] for q in inst_qubits]) - cmd.duration
+            if cmd_start_time == float("inf"):
+                cmd_start_time = 0
+            shift_amount = max(0, -cmd_start_time)
+            cmd_start_time = max(cmd_start_time, 0)
+            sched = pulse.ops.union((shift_amount, sched), (cmd_start_time, cmd))
+            update_times(inst_qubits, shift_amount)
+    insert_measures_front()
+
     return sched
 
 
