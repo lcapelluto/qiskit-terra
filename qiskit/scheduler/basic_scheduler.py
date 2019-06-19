@@ -36,7 +36,7 @@ def schedule(circuit: QuantumCircuit,
     """
     Basic scheduling pass from a circuit to a pulse Schedule, using the backend. By default, pulses
     are scheduled to occur as late as possible. This improves the outcome fidelity, because we may
-    maximize the time that the qubit remains in a known state. To schedule pulses as early as
+    maximize the time that the qubit remains in the ground state. To schedule pulses as early as
     possible, greedy can be set to True.
 
     Args:
