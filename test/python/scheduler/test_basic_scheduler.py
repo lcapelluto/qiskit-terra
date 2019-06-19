@@ -27,7 +27,7 @@ class TestBasicSchedule(QiskitTestCase):
     def setUp(self):
         self.backend = FakeOpenPulse2Q()
 
-    def test_forward_pass(self):
+    def test_minimize_earliness_pass(self):
         """Test forward (late) scheduling."""
         q = QuantumRegister(2)
         c = ClassicalRegister(2)
@@ -44,7 +44,7 @@ class TestBasicSchedule(QiskitTestCase):
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time != 0)
 
-    def test_backward_pass(self):
+    def test_greedy_pass(self):
         """Test backward (early) scheduling."""
         q = QuantumRegister(2)
         c = ClassicalRegister(2)
@@ -60,3 +60,7 @@ class TestBasicSchedule(QiskitTestCase):
         # X pulse on q0 should start at t=0
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time == 0)
+
+    def test_cmd_def_schedules_unaltered(self):
+        """Test that forward scheduling doesn't change relative timing with a command."""
+        pass
