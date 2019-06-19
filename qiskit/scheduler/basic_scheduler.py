@@ -16,52 +16,69 @@
 
 from collections import defaultdict
 from copy import deepcopy
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from qiskit import QiskitError
 from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
 from qiskit.providers.basebackend import BaseBackend
-
 from qiskit.pulse.cmd_def import CmdDef
 from qiskit.pulse.schedule import Schedule
 
 
-def schedule(circuit: QuantumCircuit, backend: BaseBackend,
-                   push_forward: bool = True) -> Schedule:
+def schedule(circuit: QuantumCircuit,
+             backend: Optional[BaseBackend] = None,
+             cmd_def: Optional[CmdDef] = None,
+             meas_map: Optional[List[List[int]]] = None,
+             greedy: bool = False) -> Schedule:
     """
     Basic scheduling pass from a circuit to a pulse Schedule, using the backend. By default, pulses
     are scheduled to occur as late as possible. This improves the outcome fidelity, because we may
     maximize the time that the qubit remains in a known state. To schedule pulses as early as
-    possible, push_forward can be set to False.
+    possible, greedy can be set to True.
 
     Args:
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
-        push_forward: If True, follow the delayed scheduling policy, else schedule early
+        cmd_def: Command definition list
+        meas_map: Groups of qubits that get measured together
+        greedy: If True, schedule greedily, else schedule pulses as late as possible
     Returns:
-        New Schedule
+        Schedule corresponding to the input circuit
     """
-    if push_forward:
-        return minimize_earliness_schedule(circuit, backend)
-    return greedy_schedule(circuit, backend)
+    if cmd_def == None:
+        if backend == None:
+            raise QiskitError("Must supply either a backend or CmdDef for scheduling passes.")
+        defaults = backend.defaults()
+        cmd_def = CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library)
+    if meas_map == None:
+        if backend == None:
+            raise QiskitError("Must supply either a backend or a meas_map for scheduling passes.")
+        meas_map = format_meas_map(backend.configuration().meas_map)
+
+    if greedy:
+        return greedy_schedule(circuit, cmd_def, meas_map)
+    return minimize_earliness_schedule(circuit, cmd_def, meas_map)
 
 
-def minimize_earliness_schedule(circuit: QuantumCircuit, backend: BaseBackend) -> Schedule:
+def minimize_earliness_schedule(circuit: QuantumCircuit,
+                                cmd_def: CmdDef,
+                                meas_map: List[List[int]]) -> Schedule:
     """
     Return the input circuit's equivalent pulse Schedule by performing the most basic scheduling
-    pass on it. The pulses are "backward scheduled", meaning that pulses are played as early as
-    possible.
+    pass on it. The pulses are scheduled as late as possible.
 
     Args:
         circuit: The quantum circuit to translate
-        backend: A backend instance, which contains hardware specific data required for scheduling
+        cmd_def: Command definition list
+        meas_map: Groups of qubits that get measured together
     Returns:
-        New backward scheduled Schedule
+        Late scheduled pulse Schedule
     """
-    circuit_copy = deepcopy(circuit)
-    circuit_copy.data.reverse()
+    for i in range(len(circuit.data)):
+        inst, qregs, _ = circuit.data[i]
+
     reversed_schedule = greedy_schedule(circuit_copy, backend)
     total_time = max(inst[0] + inst[1].duration for inst in reversed_schedule.instructions)
     insts = list(reversed_schedule.instructions)
@@ -73,33 +90,21 @@ def minimize_earliness_schedule(circuit: QuantumCircuit, backend: BaseBackend) -
 
 
 def greedy_schedule(circuit: QuantumCircuit,
-                    backend: Optional[BaseBackend] = None,
-                    cmd_def: Optional[CmdDef] = None,
-                    meas_map: Optional[List[List[int]]] = None) -> Schedule:
+                    cmd_def: CmdDef,
+                    meas_map: List[List[int]]) -> Schedule:
     """
     Return the input circuit's equivalent pulse Schedule by performing the most basic scheduling
-    pass on it. The pulses are "backward scheduled", meaning that pulses are played as early as
+    pass on it. The pulses are greedily scheduled, meaning that pulses are played as early as
     possible.
 
     Args:
         circuit: The quantum circuit to translate
-        backend: A backend instance, which contains hardware specific data required for scheduling
         cmd_def: Command definition list
         meas_map: Groups of qubits that get measured together
     Returns:
-        New forward scheduled Schedule
+        Greedily scheduled pulse Schedule
     """
     sched = Schedule(name=circuit.name)
-
-    if cmd_def == None:
-        if backend == None:
-            raise QiskitError("Must supply either a backend or CmdDef for scheduling passes.")
-        defaults = backend.defaults()
-        cmd_def = CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library)
-    if meas_map == None:
-        if backend == None:
-            raise QiskitError("Must supply either a backend or a meas_map for scheduling passes.")
-        meas_map = format_meas_map(backend.configuration().meas_map)
 
     qubit_time_available = defaultdict(int)
     measured_qubits = set()
@@ -125,8 +130,7 @@ def greedy_schedule(circuit: QuantumCircuit,
     for inst, qregs, _ in circuit:
         qubits = [chan.index for chan in qregs]
         if isinstance(inst, Barrier):
-            for q in qubits:
-                qubit_time_available[q] = max(qubit_time_available[q] for q in qubits)
+            update_times(qubits, max(qubit_time_available[q] for q in qubits))
             continue
         if any(q in measured_qubits for q in qubits):
             add_measures()
