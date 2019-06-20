@@ -13,3 +13,5 @@
 # that they have been altered from the originals.
 
 """Module for scheduling pulse `Schedule`s from `QuantumCircuit`s."""
+
+from qiskit.scheduler.basic_scheduler import schedule

@@ -39,10 +39,11 @@ class TestBasicSchedule(QiskitTestCase):
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
-        sched = schedule(qc, self.backend, push_forward=True)
+        sched = schedule(qc, self.backend, greedy=True)
         # X pulse on q0 should end at the start of the CNOT
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time != 0)
+        # TODO
 
     def test_greedy_pass(self):
         """Test backward (early) scheduling."""
@@ -56,10 +57,11 @@ class TestBasicSchedule(QiskitTestCase):
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
-        sched = schedule(qc, self.backend, push_forward=False)
+        sched = schedule(qc, self.backend, greedy=False)
         # X pulse on q0 should start at t=0
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time == 0)
+        # TODO
 
     def test_cmd_def_schedules_unaltered(self):
         """Test that forward scheduling doesn't change relative timing with a command."""
