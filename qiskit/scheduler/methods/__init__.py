@@ -12,8 +12,4 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""Module for scheduling pulse `Schedule`s from `QuantumCircuit`s."""
-
-from qiskit.scheduler.models import ScheduleConfig
-from qiskit.scheduler.schedule_circuit import schedule_circuit
-from qiskit.scheduler.schedule import schedule
+"""Pulse scheduling methods."""
