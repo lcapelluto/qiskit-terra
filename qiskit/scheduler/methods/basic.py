@@ -12,7 +12,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""The most straightforward scheduling methods: greedy and minimize earliness."""
+"""The most straightforward scheduling methods: scheduling as early or as late as possible."""
 
 from collections import defaultdict
 from typing import List
@@ -26,12 +26,12 @@ from qiskit.pulse.schedule import Schedule
 from qiskit.scheduler.models import ScheduleConfig, CircuitPulseDef
 
 
-def greedy_schedule(circuit: QuantumCircuit,
-                    schedule_config: ScheduleConfig) -> Schedule:
+def as_soon_as_possible(circuit: QuantumCircuit,
+                        schedule_config: ScheduleConfig) -> Schedule:
     """
     Return a pulse Schedule which nails down the timing between circuit element schedules by
-    scheduling greedily, where resources are binned by qubit. The timing between instructions
-    within each circuit schedule are respected.
+    scheduling pulses as soon as possible, where resources are binned by qubit. The timing
+    between instructions within each circuit schedule are respected.
 
     Args:
         circuit: The quantum circuit to translate
@@ -59,14 +59,14 @@ def greedy_schedule(circuit: QuantumCircuit,
     return sched
 
 
-def minimize_earliness_schedule(circuit: QuantumCircuit,
-                                schedule_config: ScheduleConfig) -> Schedule:
+def as_late_as_possible(circuit: QuantumCircuit,
+                        schedule_config: ScheduleConfig) -> Schedule:
     """
     Return a pulse Schedule which nails down the timing between circuit element schedules by
-    minimizing the earliness of pulses on a resource, where resources are binned by qubit. The
+    scheduling pulses as late as possible on a resource, where resources are binned by qubit. The
     timing between instructions within each circuit schedule are respected.
 
-    This method should improves the outcome fidelity over greedy scheduling, because we may
+    This method should improves the outcome fidelity over ASAP scheduling, because we may
     maximize the time that the qubit remains in the ground state.
 
     Args:

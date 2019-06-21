@@ -39,7 +39,7 @@ class TestBasicSchedule(QiskitTestCase):
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
-        sched = schedule(qc, self.backend, methods="greedy")
+        sched = schedule(qc, self.backend, method="as_soon_as_possible")
         # X pulse on q0 should end at the start of the CNOT
         q0_x_time = sched.instructions[0][0]
         self.assertTrue(q0_x_time != 0)

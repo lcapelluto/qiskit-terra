@@ -20,7 +20,7 @@ from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.pulse.schedule import Schedule
 
 from qiskit.scheduler.models import ScheduleConfig
-from qiskit.scheduler.methods.basic import greedy_schedule, minimize_earliness_schedule
+from qiskit.scheduler.methods.basic import as_soon_as_possible, as_late_as_possible
 
 
 def schedule_circuit(circuit: QuantumCircuit,
@@ -32,8 +32,8 @@ def schedule_circuit(circuit: QuantumCircuit,
     scheduled to occur as late as possible.
 
     Supported methods:
-        'greedy': Schedule pulses greedily, as early as possible on a qubit resource
-        'minimize_earliness': Schedule pulses late-- keep qubits in the ground state when possible
+        'as_soon_as_possible': Schedule pulses greedily, as early as possible on a qubit resource
+        'as_late_as_possible': Schedule pulses late-- keep qubits in the ground state when possible
 
     Args:
         circuit: The quantum circuit to translate
@@ -45,11 +45,11 @@ def schedule_circuit(circuit: QuantumCircuit,
         QiskitError: If method isn't recognized
     """
     methods = {
-        'greedy': greedy_schedule,
-        'minimize_earliness': minimize_earliness_schedule
+        'as_soon_as_possible': as_soon_as_possible,
+        'as_late_as_possible': as_late_as_possible
     }
     if method is None:
-        method = 'minimize_earliness'
+        method = 'as_late_as_possible'
     try:
         return methods[method](circuit, schedule_config)
     except KeyError:
