@@ -16,6 +16,7 @@
 Convenience entry point into pulse scheduling, requiring only a circuit and a backend. For more
 control over pulse scheduling, look at .schedule_circuit
 """
+from typing import Optional
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.providers.basebackend import BaseBackend
@@ -28,14 +29,14 @@ from qiskit.scheduler.models import ScheduleConfig
 
 def schedule(circuit: QuantumCircuit,
              backend: BaseBackend,
-             methods=None) -> Schedule:
+             method: Optional[str] = None) -> Schedule:
     """
     Schedule a circuit to a pulse Schedule, using the backend, according to any specified methods.
 
     Args:
         circuit: The quantum circuit to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
-        methods: TODO
+        method: Optionally specify a particular scheduling method
     Returns:
         Schedule corresponding to the input circuit
     """
@@ -43,4 +44,4 @@ def schedule(circuit: QuantumCircuit,
     schedule_config = ScheduleConfig(
         cmd_def=CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library),
         meas_map=backend.configuration().meas_map)
-    return schedule_circuit(circuit, schedule_config, methods)
+    return schedule_circuit(circuit, schedule_config, method)
