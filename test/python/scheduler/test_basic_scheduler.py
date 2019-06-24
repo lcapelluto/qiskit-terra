@@ -139,3 +139,18 @@ class TestBasicSchedule(QiskitTestCase):
             self.assertEqual(actual[0], expected[0])
             self.assertEqual(actual[1].command, expected[1].command)
             self.assertEqual(actual[1].channels, expected[1].channels)
+
+    def test_schedule_multi(self):
+        """Test scheduling multiple circuits at once."""
+        q = QuantumRegister(2)
+        c = ClassicalRegister(2)
+        qc0 = QuantumCircuit(q, c)
+        qc0.cx(q[0], q[1])
+        qc1 = QuantumCircuit(q, c)
+        qc1.cx(q[0], q[1])
+        schedules = schedule([qc0, qc1], self.backend)
+        expected_insts = schedule(qc0, self.backend).instructions
+        for actual, expected in zip(schedules[0].instructions, expected_insts):
+            self.assertEqual(actual[0], expected[0])
+            self.assertEqual(actual[1].command, expected[1].command)
+            self.assertEqual(actual[1].channels, expected[1].channels)

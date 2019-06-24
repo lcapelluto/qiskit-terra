@@ -14,9 +14,9 @@
 
 """
 Convenience entry point into pulse scheduling, requiring only a circuit and a backend. For more
-control over pulse scheduling, look at .schedule_circuit
+control over pulse scheduling, look at `.schedule_circuit`.
 """
-from typing import Optional
+from typing import List, Optional, Union
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.providers.basebackend import BaseBackend
@@ -27,14 +27,16 @@ from qiskit.scheduler.schedule_circuit import schedule_circuit
 from qiskit.scheduler.models import ScheduleConfig
 
 
-def schedule(circuit: QuantumCircuit,
+def schedule(circuits: Union[QuantumCircuit, List[QuantumCircuit]],
              backend: BaseBackend,
-             method: Optional[str] = None) -> Schedule:
+             method: Optional[Union[str, List[str]]] = None) -> Schedule:
     """
     Schedule a circuit to a pulse Schedule, using the backend, according to any specified methods.
+    Supported methods are documented in
+    :py:func:`qiskit.pulse.scheduler.schedule_circuit.schedule_circuit`.
 
     Args:
-        circuit: The quantum circuit to translate
+        circuits: The quantum circuit or circuits to translate
         backend: A backend instance, which contains hardware specific data required for scheduling
         method: Optionally specify a particular scheduling method
     Returns:
@@ -44,4 +46,6 @@ def schedule(circuit: QuantumCircuit,
     schedule_config = ScheduleConfig(
         cmd_def=CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library),
         meas_map=backend.configuration().meas_map)
-    return schedule_circuit(circuit, schedule_config, method)
+    circuits = circuits if isinstance(circuits, list) else [circuits]
+    schedules = [schedule_circuit(circuit, schedule_config, method) for circuit in circuits]
+    return schedules[0] if len(schedules) == 1 else schedules
