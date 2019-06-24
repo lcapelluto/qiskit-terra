@@ -37,7 +37,7 @@ def as_soon_as_possible(circuit: QuantumCircuit,
         circuit: The quantum circuit to translate
         schedule_config: Backend specific parameters used for building the Schedule
     Returns:
-        A final schedule, greedily scheduled
+        A final schedule, pulses occuring as early as possible
     """
     circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
 
@@ -73,7 +73,7 @@ def as_late_as_possible(circuit: QuantumCircuit,
         circuit: The quantum circuit to translate
         schedule_config: Backend specific parameters used for building the Schedule
     Returns:
-        A final schedule, minimizing earliness
+        A final schedule, pulses occuring as late as possible
     """
     circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
 
