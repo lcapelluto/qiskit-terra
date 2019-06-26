@@ -15,12 +15,13 @@
 """Test cases for the pulse scheduler passes."""
 
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from qiskit.pulse.channels import AcquireChannel
-from qiskit.pulse.commands import AcquireInstruction
+from qiskit.pulse.schedule import Schedule
 from qiskit.scheduler import schedule
 
 from qiskit.test.mock import FakeOpenPulse2Q
 from qiskit.test import QiskitTestCase
+
+from qiskit.pulse.cmd_def import CmdDef
 
 
 class TestBasicSchedule(QiskitTestCase):
@@ -28,53 +29,58 @@ class TestBasicSchedule(QiskitTestCase):
 
     def setUp(self):
         self.backend = FakeOpenPulse2Q()
+        defaults = self.backend.defaults()
+        self.cmd_def = CmdDef.from_defaults(defaults.cmd_def, defaults.pulse_library)
 
     def test_alap_pass(self):
         """Test ALAP scheduling."""
         q = QuantumRegister(2)
         c = ClassicalRegister(2)
         qc = QuantumCircuit(q, c)
-        qc.x(q[0])
-        qc.x(q[1])
+        qc.u2(3.14, 1.57, q[0])
+        qc.u2(0.5, 0.25, q[1])
         qc.barrier(q[1])
-        qc.x(q[1])
+        qc.u2(0.5, 0.25, q[1])
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
         sched = schedule(qc, self.backend)
         # X pulse on q0 should end at the start of the CNOT
-        insts = sched.instructions
-        self.assertNotEqual(insts[-1][0], 0)
-        self.assertEqual(insts[-1][0], 28)
-        self.assertEqual(insts[-2][0], 0)
-        self.assertEqual(insts[-3][0], 28)
-        self.assertEqual(insts[0][0], 78)
-        self.assertEqual(insts[1][0], 78)
-        self.assertEqual(insts[2][0], 78)
+        expected = Schedule(
+            (78, self.cmd_def.get('measure', [0, 1])),
+            (56, self.cmd_def.get('cx', [0, 1])),
+            (28, self.cmd_def.get('u2', [1], 0.5, 0.25)),
+            self.cmd_def.get('u2', [1], 0.5, 0.25),
+            (28, self.cmd_def.get('u2', [0], 3.14, 1.57)))
+        for actual, expected in zip(sched.instructions, expected.instructions):
+            self.assertEqual(actual[0], expected[0])
+            self.assertEqual(actual[1].command, expected[1].command)
+            self.assertEqual(actual[1].channels, expected[1].channels)
 
     def test_asap_pass(self):
         """Test ASAP scheduling."""
         q = QuantumRegister(2)
         c = ClassicalRegister(2)
         qc = QuantumCircuit(q, c)
-        qc.x(q[0])
-        qc.x(q[1])
+        qc.u2(3.14, 1.57, q[0])
+        qc.u2(0.5, 0.25, q[1])
         qc.barrier(q[1])
-        qc.x(q[1])
+        qc.u2(0.5, 0.25, q[1])
         qc.barrier(q[0], q[1])
         qc.cx(q[0], q[1])
         qc.measure(q, c)
         sched = schedule(qc, self.backend, method="as_soon_as_possible")
-        insts = sched.instructions
         # X pulse on q0 should start at t=0
-        self.assertEqual(insts[0][0], 0)
-        self.assertEqual(insts[1][0], 0)
-        self.assertEqual(insts[2][0], 28)
-        self.assertEqual(insts[3][0], 56)
-        self.assertEqual(insts[4][0], 66)
-        self.assertEqual(insts[5][0], 76)
-        self.assertEqual(insts[6][0], 76)
-        self.assertEqual(insts[7][0], 78)
+        expected = Schedule(
+            self.cmd_def.get('u2', [0], 3.14, 1.57),
+            self.cmd_def.get('u2', [1], 0.5, 0.25),
+            (28, self.cmd_def.get('u2', [1], 0.5, 0.25)),
+            (56, self.cmd_def.get('cx', [0, 1])),
+            (78, self.cmd_def.get('measure', [0, 1])))
+        for actual, expected in zip(sched.instructions, expected.instructions):
+            self.assertEqual(actual[0], expected[0])
+            self.assertEqual(actual[1].command, expected[1].command)
+            self.assertEqual(actual[1].channels, expected[1].channels)
 
     def test_alap_resource_respecting(self):
         """Test that the ALAP pass properly respects busy resources when backwards scheduling.
@@ -84,7 +90,7 @@ class TestBasicSchedule(QiskitTestCase):
         c = ClassicalRegister(2)
         qc = QuantumCircuit(q, c)
         qc.cx(q[0], q[1])
-        qc.x(q[1])
+        qc.u2(0.5, 0.25, q[1])
         sched = schedule(qc, self.backend, method="as_late_as_possible")
         insts = sched.instructions
         self.assertEqual(insts[-4][0], 0)
@@ -92,7 +98,7 @@ class TestBasicSchedule(QiskitTestCase):
 
         qc = QuantumCircuit(q, c)
         qc.cx(q[0], q[1])
-        qc.x(q[1])
+        qc.u2(0.5, 0.25, q[1])
         qc.measure(q, c)
         sched = schedule(qc, self.backend, method="as_late_as_possible")
         self.assertEqual(sched.instructions[0][0], 50)
@@ -118,16 +124,18 @@ class TestBasicSchedule(QiskitTestCase):
         q = QuantumRegister(2)
         c = ClassicalRegister(2)
         qc = QuantumCircuit(q, c)
-        qc.x(q[0])
+        qc.u2(3.14, 1.57, q[0])
         qc.cx(q[0], q[1])
         qc.measure(q[0], c[0])
         qc.measure(q[1], c[1])
         qc.measure(q[1], c[1])
         sched = schedule(qc, self.backend, method="as_soon_as_possible")
-        insts = sched.instructions
-        self.assertEqual(insts[5][0], 50)
-        self.assertTrue(AcquireChannel(0) in insts[7][1].channels)
-        self.assertTrue(AcquireChannel(1) in insts[7][1].channels)
-        self.assertEqual(insts[8][0], 60)
-        self.assertIsInstance(insts[7][1], AcquireInstruction)
-        self.assertIsInstance(insts[10][1], AcquireInstruction)
+        expected = Schedule(
+            self.cmd_def.get('u2', [0], 3.14, 1.57),
+            (28, self.cmd_def.get('cx', [0, 1])),
+            (50, self.cmd_def.get('measure', [0, 1])),
+            (60, self.cmd_def.get('measure', [0, 1])))
+        for actual, expected in zip(sched.instructions, expected.instructions):
+            self.assertEqual(actual[0], expected[0])
+            self.assertEqual(actual[1].command, expected[1].command)
+            self.assertEqual(actual[1].channels, expected[1].channels)
