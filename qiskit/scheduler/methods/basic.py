@@ -136,8 +136,8 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
 
     circ_pulse_defs = []
     measured_qubits = set()
-    for inst, qregs, _ in circuit.data:
-        inst_qubits = [chan.index for chan in qregs]
+    for inst, qubits, _ in circuit.data:
+        inst_qubits = [chan.index for chan in qubits]
         if any(q in measured_qubits for q in inst_qubits):
             circ_pulse_defs.append(get_measure_schedule())
         if isinstance(inst, Barrier):
