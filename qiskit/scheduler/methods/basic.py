@@ -21,6 +21,7 @@ from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
 from qiskit import pulse
+from qiskit.pulse.exceptions import PulseError
 from qiskit.pulse.schedule import Schedule
 
 from qiskit.scheduler.models import ScheduleConfig, CircuitPulseDef
@@ -145,9 +146,14 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
         elif isinstance(inst, Measure):
             measured_qubits.update(inst_qubits)
         else:
-            circ_pulse_defs.append(
-                CircuitPulseDef(schedule=cmd_def.get(inst.name, inst_qubits, *inst.params),
-                                qubits=inst_qubits))
+            try:
+                circ_pulse_defs.append(
+                    CircuitPulseDef(schedule=cmd_def.get(inst.name, inst_qubits, *inst.params),
+                                    qubits=inst_qubits))
+            except PulseError:
+                raise PulseError("Operation '{0}' on qubit(s) {1} not supported by the backend "
+                                 "command definition. Did you remember to transpile your input "
+                                 "circuit for the same backend?".format(inst.name, inst_qubits))
     if measured_qubits:
         circ_pulse_defs.append(get_measure_schedule())
 
