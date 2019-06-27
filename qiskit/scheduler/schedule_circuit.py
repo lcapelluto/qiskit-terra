@@ -46,7 +46,9 @@ def schedule_circuit(circuit: QuantumCircuit,
     """
     methods = {
         'as_soon_as_possible': as_soon_as_possible,
-        'as_late_as_possible': as_late_as_possible
+        'asap': as_soon_as_possible,
+        'as_late_as_possible': as_late_as_possible,
+        'alap': as_late_as_possible
     }
     if method is None:
         method = 'as_late_as_possible'

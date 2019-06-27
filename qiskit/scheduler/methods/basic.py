@@ -40,16 +40,16 @@ def as_soon_as_possible(circuit: QuantumCircuit,
     Returns:
         A final schedule, pulses occuring as early as possible
     """
-    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
+    sched = Schedule()
+
+    qubit_time_available = defaultdict(int)
 
     def update_times(inst_qubits: List[int], time: int = 0) -> None:
         """Update the time tracker for all inst_qubits to the given time."""
         for q in inst_qubits:
             qubit_time_available[q] = time
 
-    sched = Schedule()
-    qubit_time_available = defaultdict(int)
-
+    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
     for circ_pulse_def in circ_pulse_defs:
         time = max(qubit_time_available[q] for q in circ_pulse_def.qubits)
         if isinstance(circ_pulse_def.schedule, Barrier):
@@ -76,28 +76,35 @@ def as_late_as_possible(circuit: QuantumCircuit,
     Returns:
         A final schedule, pulses occuring as late as possible
     """
-    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
+    sched = Schedule()
+
+    # We schedule in reverse order to get ALAP behaviour. We need to know how far out from t=0 any
+    # qubit will become occupied. We add positive shifts to these times as we go along.
+    qubit_available_until = defaultdict(lambda: float("inf"))
 
     def update_times(inst_qubits: List[int], shift: int = 0) -> None:
         """Update the time tracker for all inst_qubits to the given time."""
         for q in qubit_available_until.keys():
             if q in inst_qubits:
+                # A newly scheduled instruction on q starts at t=0 as we move backwards
                 qubit_available_until[q] = 0
             else:
+                # Uninvolved qubits might be free for the duration of the new instruction
                 qubit_available_until[q] += shift
 
-    sched = Schedule()
-    qubit_available_until = defaultdict(lambda: float("inf"))
-
+    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
     for circ_pulse_def in reversed(circ_pulse_defs):
         if isinstance(circ_pulse_def.schedule, Barrier):
             update_times(circ_pulse_def.qubits)
         else:
             cmd_sched = circ_pulse_def.schedule
+            # The new instruction should end when one of its qubits becomes occupied
             cmd_start_time = (min([qubit_available_until[q] for q in circ_pulse_def.qubits])
                               - cmd_sched.duration)
             if cmd_start_time == float("inf"):
+                # These qubits haven't been used yet, so schedule the instruction at t=0
                 cmd_start_time = 0
+            # We have to translate qubit times forward when the cmd_start_time is negative
             shift_amount = max(0, -cmd_start_time)
             cmd_start_time = max(cmd_start_time, 0)
             sched = sched.shift(shift_amount) | cmd_sched.shift(cmd_start_time)
@@ -121,8 +128,10 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
     Raises:
         QiskitError: If circuit uses a command that isn't defined in config.cmd_def
     """
+    circ_pulse_defs = []
+
     cmd_def = schedule_config.cmd_def
-    meas_map = schedule_config.meas_map
+    measured_qubits = set()  # Collect qubits that would like to be measured
 
     def get_measure_schedule() -> CircuitPulseDef:
         """Create a schedule to measure the qubits queued for measuring."""
@@ -130,18 +139,17 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
         all_qubits = set()
         sched = Schedule()
         for q in measured_qubits:
-            measures.add(tuple(meas_map[q]))
+            measures.add(tuple(schedule_config.meas_map[q]))
         for qubits in measures:
             all_qubits.update(qubits)
             sched |= cmd_def.get('measure', qubits)
         measured_qubits.clear()
         return CircuitPulseDef(schedule=sched, qubits=all_qubits)
 
-    circ_pulse_defs = []
-    measured_qubits = set()
     for inst, qubits, _ in circuit.data:
         inst_qubits = [qubit.index for qubit in qubits]  # We want only the indices of the qubits
         if any(q in measured_qubits for q in inst_qubits):
+            # If we are operating on a qubit that was scheduled to be measured, process that first
             circ_pulse_defs.append(get_measure_schedule())
         if isinstance(inst, Barrier):
             circ_pulse_defs.append(CircuitPulseDef(schedule=inst, qubits=inst_qubits))
