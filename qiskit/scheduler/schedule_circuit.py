@@ -33,8 +33,9 @@ def schedule_circuit(circuit: QuantumCircuit,
 
     Supported methods:
         'as_soon_as_possible': Schedule pulses greedily, as early as possible on a qubit resource
+            alias: 'asap'
         'as_late_as_possible': Schedule pulses late-- keep qubits in the ground state when possible
-
+            alias: 'alap'
     Args:
         circuit: The quantum circuit to translate
         schedule_config: Backend specific parameters used for building the Schedule

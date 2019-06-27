@@ -30,9 +30,11 @@ from qiskit.scheduler.models import ScheduleConfig, CircuitPulseDef
 def as_soon_as_possible(circuit: QuantumCircuit,
                         schedule_config: ScheduleConfig) -> Schedule:
     """
-    Return a pulse Schedule which nails down the timing between circuit element schedules by
-    scheduling pulses as soon as possible, where resources are binned by qubit. The timing
-    between instructions within each circuit schedule are respected.
+    Return the pulse Schedule which implements the input circuit using an "as soon as possible"
+    (asap) scheduling policy. Circuit instructions are first each mapped to equivalent pulse
+    Schedules according to the command definition given by the schedule_config. Then, this circuit
+    instruction-equivalent Schedule is appended at the earliest time at which all qubits involved
+    in the instruction are available.
 
     Args:
         circuit: The quantum circuit to translate
@@ -63,9 +65,11 @@ def as_soon_as_possible(circuit: QuantumCircuit,
 def as_late_as_possible(circuit: QuantumCircuit,
                         schedule_config: ScheduleConfig) -> Schedule:
     """
-    Return a pulse Schedule which nails down the timing between circuit element schedules by
-    scheduling pulses as late as possible on a resource, where resources are binned by qubit. The
-    timing between instructions within each circuit schedule are respected.
+    Return the pulse Schedule which implements the input circuit using an "as late as possible"
+    (alap) scheduling policy. Circuit instructions are first each mapped to equivalent pulse
+    Schedules according to the command definition given by the schedule_config. Then, this circuit
+    instruction-equivalent Schedule is appended at the latest time that it can be without allowing
+    unnecessary time between instructions or allowing instructions with common qubits to overlap.
 
     This method should improves the outcome fidelity over ASAP scheduling, because we may
     maximize the time that the qubit remains in the ground state.
