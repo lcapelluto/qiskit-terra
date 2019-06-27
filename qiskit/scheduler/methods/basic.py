@@ -20,7 +20,7 @@ from typing import List
 from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.extensions.standard.barrier import Barrier
-from qiskit import pulse
+from qiskit import QiskitError
 from qiskit.pulse.exceptions import PulseError
 from qiskit.pulse.schedule import Schedule
 
@@ -100,7 +100,7 @@ def as_late_as_possible(circuit: QuantumCircuit,
                 cmd_start_time = 0
             shift_amount = max(0, -cmd_start_time)
             cmd_start_time = max(cmd_start_time, 0)
-            sched = pulse.ops.union((shift_amount, sched), (cmd_start_time, cmd_sched))
+            sched = sched.shift(shift_amount) | cmd_sched.shift(cmd_start_time)
             update_times(circ_pulse_def.qubits, shift_amount)
     return sched
 
@@ -118,6 +118,8 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
         schedule_config: Backend specific parameters used for building the Schedule
     Returns:
         A list of CircuitPulseDefs: the pulse definition for each circuit element
+    Raises:
+        QiskitError: If circuit uses a command that isn't defined in config.cmd_def
     """
     cmd_def = schedule_config.cmd_def
     meas_map = schedule_config.meas_map
@@ -151,9 +153,9 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
                     CircuitPulseDef(schedule=cmd_def.get(inst.name, inst_qubits, *inst.params),
                                     qubits=inst_qubits))
             except PulseError:
-                raise PulseError("Operation '{0}' on qubit(s) {1} not supported by the backend "
-                                 "command definition. Did you remember to transpile your input "
-                                 "circuit for the same backend?".format(inst.name, inst_qubits))
+                raise QiskitError("Operation '{0}' on qubit(s) {1} not supported by the backend "
+                                  "command definition. Did you remember to transpile your input "
+                                  "circuit for the same backend?".format(inst.name, inst_qubits))
     if measured_qubits:
         circ_pulse_defs.append(get_measure_schedule())
 
