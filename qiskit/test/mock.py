@@ -264,7 +264,7 @@ class FakeOpenPulse2Q(FakeBackend):
                                        PulseQobjInstruction(name='test_pulse_1', ch='d1', t0=20),
                                        PulseQobjInstruction(name='fc', ch='d1',
                                                             t0=20, phase=2.1)]),
-                     Command(name='cx-parametrized', qubits=[0, 1],
+                     Command(name='ParametrizedGate', qubits=[0, 1],
                              sequence=[PulseQobjInstruction(name='test_pulse_1', ch='d0', t0=0),
                                        PulseQobjInstruction(name='test_pulse_2', ch='u0', t0=10),
                                        PulseQobjInstruction(name='pv', ch='d1',
