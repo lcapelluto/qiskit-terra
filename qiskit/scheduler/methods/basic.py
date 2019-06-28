@@ -12,7 +12,11 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-"""The most straightforward scheduling methods: scheduling as early or as late as possible."""
+"""The most straightforward scheduling methods: scheduling as early or as late as possible.
+
+Warning: Currently for both of these methods, the MemorySlots in circuit Measures are ignored.
+Qubits will be measured into the MemorySlot which matches the measured qubit's index. (Issue #2704)
+"""
 
 from collections import defaultdict
 from typing import List
@@ -146,6 +150,7 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
             measures.add(tuple(schedule_config.meas_map[q]))
         for qubits in measures:
             all_qubits.update(qubits)
+            # TODO (Issue #2704): Respect MemorySlots from the input circuit
             sched |= cmd_def.get('measure', qubits)
         measured_qubits.clear()
         return CircuitPulseDef(schedule=sched, qubits=all_qubits)
