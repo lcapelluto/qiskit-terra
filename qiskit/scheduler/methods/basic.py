@@ -57,7 +57,7 @@ def as_soon_as_possible(circuit: QuantumCircuit,
         if isinstance(circ_pulse_def.schedule, Barrier):
             update_times(circ_pulse_def.qubits, time)
         else:
-            sched |= circ_pulse_def.schedule << time
+            sched = sched.insert(time, circ_pulse_def.schedule)
             update_times(circ_pulse_def.qubits, time + circ_pulse_def.schedule.duration)
     return sched
 
@@ -111,7 +111,7 @@ def as_late_as_possible(circuit: QuantumCircuit,
             # We have to translate qubit times forward when the cmd_start_time is negative
             shift_amount = max(0, -cmd_start_time)
             cmd_start_time = max(cmd_start_time, 0)
-            sched = sched.shift(shift_amount) | cmd_sched.shift(cmd_start_time)
+            sched = cmd_sched.shift(cmd_start_time).insert(shift_amount, sched)
             update_times(circ_pulse_def.qubits, shift_amount)
     return sched
 
