@@ -47,11 +47,11 @@ class TestBasicSchedule(QiskitTestCase):
         sched = schedule(qc, self.backend)
         # X pulse on q0 should end at the start of the CNOT
         expected = Schedule(
-            (78, self.cmd_def.get('measure', [0, 1])),
-            (56, self.cmd_def.get('cx', [0, 1])),
-            (28, self.cmd_def.get('u2', [1], 0.5, 0.25)),
+            (28, self.cmd_def.get('u2', [0], 3.14, 1.57)),
             self.cmd_def.get('u2', [1], 0.5, 0.25),
-            (28, self.cmd_def.get('u2', [0], 3.14, 1.57)))
+            (28, self.cmd_def.get('u2', [1], 0.5, 0.25)),
+            (56, self.cmd_def.get('cx', [0, 1])),
+            (78, self.cmd_def.get('measure', [0, 1])))
         for actual, expected in zip(sched.instructions, expected.instructions):
             self.assertEqual(actual[0], expected[0])
             self.assertEqual(actual[1].command, expected[1].command)
@@ -93,15 +93,15 @@ class TestBasicSchedule(QiskitTestCase):
         qc.u2(0.5, 0.25, q[1])
         sched = schedule(qc, self.backend, method="as_late_as_possible")
         insts = sched.instructions
-        self.assertEqual(insts[-4][0], 0)
-        self.assertEqual(insts[-5][0], 22)
+        self.assertEqual(insts[0][0], 0)
+        self.assertEqual(insts[4][0], 22)
 
         qc = QuantumCircuit(q, c)
         qc.cx(q[0], q[1])
         qc.u2(0.5, 0.25, q[1])
         qc.measure(q, c)
         sched = schedule(qc, self.backend, method="as_late_as_possible")
-        self.assertEqual(sched.instructions[0][0], 50)
+        self.assertEqual(sched.instructions[-1][0], 50)
 
     def test_cmd_def_schedules_unaltered(self):
         """Test that forward scheduling doesn't change relative timing with a command."""
