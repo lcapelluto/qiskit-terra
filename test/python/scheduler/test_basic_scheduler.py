@@ -111,7 +111,10 @@ class TestBasicSchedule(QiskitTestCase):
         qc.cx(q[0], q[1])
         sched1 = schedule(qc, self.backend, method="as_soon_as_possible")
         sched2 = schedule(qc, self.backend, method="as_late_as_possible")
-        self.assertEqual(sched1.instructions, sched2.instructions)
+        for asap_sched, alap_sched in zip(sched1.instructions, sched2.instructions):
+            self.assertEqual(asap_sched[0], alap_sched[0])
+            self.assertEqual(asap_sched[1].command, alap_sched[1].command)
+            self.assertEqual(asap_sched[1].channels, alap_sched[1].channels)
         insts = sched1.instructions
         self.assertEqual(insts[0][0], 0)
         self.assertEqual(insts[1][0], 10)

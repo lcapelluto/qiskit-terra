@@ -62,23 +62,15 @@ def as_soon_as_possible(circuit: QuantumCircuit,
         if isinstance(circ_pulse_def.schedule, Barrier):
             continue
         barriers[qubit_sched_pointer[inst_qubits[0]]] += circ_pulse_def.schedule
-        if isinstance(circ_pulse_def.schedule, Measure):
-            # Keep following gates separate
-            barriers.append(Schedule())
-            for q in inst_qubits:
-                qubit_sched_pointer[q] = len(barriers) -1
+        barriers.append(Schedule())
+        for q in inst_qubits:
+            qubit_sched_pointer[q] = len(barriers) -1
 
     final_sched = Schedule()
     for sched in barriers:
-        if isinstance(sched, Measure):
-            final_sched |= sched << final_sched.duration
-        else:
-            final_sched += sched
+        final_sched |= sched << final_sched.duration
     return final_sched
 
-
-# What I think makes the most sense is to main a Schedule for each barrier and track which qubits
-#  belong to which barrier as time proceeds.
 
 def as_late_as_possible(circuit: QuantumCircuit,
                         schedule_config: ScheduleConfig) -> Schedule:
@@ -167,7 +159,7 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
             # TODO (Issue #2704): Respect MemorySlots from the input circuit
             sched |= cmd_def.get('measure', qubits)
         measured_qubits.clear()
-        return CircuitPulseDef(schedule=sched, qubits=all_qubits)
+        return CircuitPulseDef(schedule=sched, qubits=list(all_qubits))
 
     for inst, qubits, _ in circuit.data:
         inst_qubits = [qubit.index for qubit in qubits]  # We want only the indices of the qubits
