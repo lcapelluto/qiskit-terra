@@ -111,7 +111,7 @@ class TestBasicSchedule(QiskitTestCase):
         qc.cx(q[0], q[1])
         sched1 = schedule(qc, self.backend, method="as_soon_as_possible")
         sched2 = schedule(qc, self.backend, method="as_late_as_possible")
-        self.assertNotEqual(sched1.instructions, sched2.instructions)
+        self.assertEqual(sched1.instructions, sched2.instructions)
         insts = sched1.instructions
         self.assertEqual(insts[0][0], 0)
         self.assertEqual(insts[1][0], 10)
@@ -135,6 +135,24 @@ class TestBasicSchedule(QiskitTestCase):
             (28, self.cmd_def.get('cx', [0, 1])),
             (50, self.cmd_def.get('measure', [0, 1])),
             (60, self.cmd_def.get('measure', [0, 1])))
+        for actual, expected in zip(sched.instructions, expected.instructions):
+            self.assertEqual(actual[0], expected[0])
+            self.assertEqual(actual[1].command, expected[1].command)
+            self.assertEqual(actual[1].channels, expected[1].channels)
+
+    def test_extra_barriers(self):
+        """Test that schedules are built properly with extra barriers."""
+        q = QuantumRegister(2)
+        c = ClassicalRegister(2)
+        qc = QuantumCircuit(q, c)
+        qc.barrier(q[0])
+        qc.barrier(q[1])
+        qc.cx(q[0], q[1])
+        qc.u2(3, 1, q[0])
+        sched = schedule(qc, self.backend, method="asap")
+        expected = Schedule(
+            self.cmd_def.get('cx', [0, 1]),
+            (22, self.cmd_def.get('u2', [0], 3, 1)))
         for actual, expected in zip(sched.instructions, expected.instructions):
             self.assertEqual(actual[0], expected[0])
             self.assertEqual(actual[1].command, expected[1].command)

@@ -46,25 +46,39 @@ def as_soon_as_possible(circuit: QuantumCircuit,
     Returns:
         A final schedule, pulses occuring as early as possible
     """
-    sched = Schedule()
+    barriers = [Schedule()]
 
-    qubit_time_available = defaultdict(int)
-
-    def update_times(inst_qubits: List[int], time: int = 0) -> None:
-        """Update the time tracker for all inst_qubits to the given time."""
-        for q in inst_qubits:
-            qubit_time_available[q] = time
+    qubit_sched_pointer = defaultdict(int)  # default to 0th Schedule
 
     circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
     for circ_pulse_def in circ_pulse_defs:
-        time = max(qubit_time_available[q] for q in circ_pulse_def.qubits)
+        inst_qubits = circ_pulse_def.qubits
+        if (len(set(qubit_sched_pointer[q] for q in inst_qubits)) > 1 or
+            isinstance(circ_pulse_def.schedule, Measure)):
+            # Need a new barrier for any measure because their channels don't overlap with gates
+            barriers.append(Schedule())
+            for q in inst_qubits:
+                qubit_sched_pointer[q] = len(barriers) - 1
         if isinstance(circ_pulse_def.schedule, Barrier):
-            update_times(circ_pulse_def.qubits, time)
-        else:
-            sched = sched.insert(time, circ_pulse_def.schedule)
-            update_times(circ_pulse_def.qubits, time + circ_pulse_def.schedule.duration)
-    return sched
+            continue
+        barriers[qubit_sched_pointer[inst_qubits[0]]] += circ_pulse_def.schedule
+        if isinstance(circ_pulse_def.schedule, Measure):
+            # Keep following gates separate
+            barriers.append(Schedule())
+            for q in inst_qubits:
+                qubit_sched_pointer[q] = len(barriers) -1
 
+    final_sched = Schedule()
+    for sched in barriers:
+        if isinstance(sched, Measure):
+            final_sched |= sched << final_sched.duration
+        else:
+            final_sched += sched
+    return final_sched
+
+
+# What I think makes the most sense is to main a Schedule for each barrier and track which qubits
+#  belong to which barrier as time proceeds.
 
 def as_late_as_possible(circuit: QuantumCircuit,
                         schedule_config: ScheduleConfig) -> Schedule:
