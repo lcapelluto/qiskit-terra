@@ -22,8 +22,6 @@ from qiskit.pulse import SamplePulse, Schedule, PulseError
 from qiskit.pulse.channels import DriveChannel, MeasureChannel
 from qiskit.pulse.schedule import ParameterizedSchedule
 
-from qiskit.pulse.system_info import SystemInfo
-
 
 class TestSystemInfo(QiskitTestCase):
     """Test the SystemInfo class."""
@@ -31,7 +29,6 @@ class TestSystemInfo(QiskitTestCase):
     def setUp(self):
         self.provider = FakeProvider()
         self.backend = self.provider.get_backend('fake_openpulse_2q')
-        self.sysinfo = SystemInfo(self.backend)
 
     # def test_init(self):
     #     """Test `init` with default_ops."""
@@ -45,14 +42,14 @@ class TestSystemInfo(QiskitTestCase):
         # self.assertEqual(self.sysinfo.name, self.backend.properties().backend_name)
         # self.assertEqual(self.sysinfo.version, self.backend.properties().backend_version)
         # self.assertEqual(self.sysinfo.n_qubits, self.backend.configuration().n_qubits)
-        self.assertEqual(self.sysinfo.dt, self.backend.configuration().dt * 1.e-9)
-        self.assertEqual(self.sysinfo.dtm, self.backend.configuration().dtm * 1.e-9)
+        self.assertEqual(self.backend.configuration()._dt, self.backend.configuration().dt / 1.e-9)
+        self.assertEqual(self.backend.configuration()._dtm, self.backend.configuration().dtm / 1.e-9)
         # self.assertEqual(self.sysinfo.basis_gates, self.backend.configuration().basis_gates)
         # self.assertEqual(self.sysinfo.buffer, self.backend.defaults().buffer)
 
     def test_sample_rate(self):
         """Test that sample rate is 1/dt."""
-        self.assertEqual(self.sysinfo.sample_rate, 1. / self.sysinfo.dt)
+        self.assertEqual(self.backend.configuration().sample_rate, 1. / self.backend.configuration().dt)
 
     def test_coupling_map(self):
         """Test that the coupling map is returned and in the proper format."""
@@ -60,7 +57,7 @@ class TestSystemInfo(QiskitTestCase):
 
     def test_hamiltonian(self):
         """Test the hamiltonian method."""
-        self.assertEqual(self.sysinfo.hamiltonian(),
+        self.assertEqual(self.backend.configuration().get_hamiltonian(),
                          self.backend.configuration().hamiltonian['h_latex'])
 
     def test_freq_est(self):
@@ -72,15 +69,15 @@ class TestSystemInfo(QiskitTestCase):
 
     def test_get_channels(self):
         """Test requesting channels from the system."""
-        self.assertEqual(self.sysinfo.drives(0), DriveChannel(0))
-        self.assertEqual(self.sysinfo.measures(1), MeasureChannel(1))
+        self.assertEqual(self.backend.configuration().drives(0), DriveChannel(0))
+        self.assertEqual(self.backend.configuration().measures(1), MeasureChannel(1))
 
-    def test_get_property(self):
-        """Test extracting properties from the backend with SystemInfo."""
-        self.assertEqual(self.sysinfo.get_property('qubits', 0, 'T1')[0],
-                         self.backend.properties().qubits[0][0].value * 1e-6)
-        self.assertEqual(self.sysinfo.get_property('qubits', 0, 'frequency')[0],
-                         self.backend.properties().qubits[0][1].value * 1e6)
+    # def test_get_property(self):
+    #     """Test extracting properties from the backend with SystemInfo."""
+    #     self.assertEqual(self.sysinfo.get_property('qubits', 0, 'T1')[0],
+    #                      self.backend.properties().qubits[0][0].value * 1e-6)
+    #     self.assertEqual(self.sysinfo.get_property('qubits', 0, 'frequency')[0],
+    #                      self.backend.properties().qubits[0][1].value * 1e6)
 
     def test_get_property(self):
         self.assertEqual(self.backend.properties().qubits[0]['T1'][0],
@@ -131,7 +128,7 @@ class TestSystemInfo(QiskitTestCase):
     def test_get_op(self):
         """Test `get`."""
         sched = Schedule()
-        sched.append(SamplePulse(np.ones(5))(self.sysinfo.drives(0)))
+        sched.append(SamplePulse(np.ones(5))(self.backend.configuration().drives(0)))
         self.backend.defaults().add('tmp', 1, sched)
         self.backend.defaults().add('tmp', 0, sched)
         self.assertEqual(sched.instructions, self.backend.defaults().get('tmp', (0,)).instructions)
@@ -142,7 +139,7 @@ class TestSystemInfo(QiskitTestCase):
     def test_remove(self):
         """Test removing a defined operation and removing an undefined operation."""
         sched = Schedule()
-        sched.append(SamplePulse(np.ones(5))(self.sysinfo.drives(0)))
+        sched.append(SamplePulse(np.ones(5))(self.backend.configuration().drives(0)))
         self.backend.defaults().add('tmp', 0, sched)
         self.backend.defaults().remove('tmp', 0)
         self.assertFalse(self.backend.defaults().has('tmp', 0))
@@ -230,6 +227,6 @@ class TestSystemInfo(QiskitTestCase):
         #     "isters', 'meas_level', 'meas_map', 'channel_bandwidth', 'acquisition_latenc"
         #     "y', 'conditional_latency', 'hamiltonian']\n    Hamiltonian:\nNone)")
 
-    def test___getattr__(self):
-        """Test the fancy get method."""
-        self.assertIsInstance(self.sysinfo.u1(qubits=0, P1=np.pi), Schedule)
+    # def test___getattr__(self):
+    #     """Test the fancy get method."""
+    #     self.assertIsInstance(self.sysinfo.u1(qubits=0, P1=np.pi), Schedule)
