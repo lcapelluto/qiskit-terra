@@ -99,6 +99,15 @@ class BaseBackend(ABC):
         """
         return self._configuration.backend_name
 
+
+    def version(self):
+        """Return the backend version.
+
+        Returns:
+            str: the name of the backend.
+        """
+        return self._configuration.backend_version
+
     def __str__(self):
         return self.name()
 
