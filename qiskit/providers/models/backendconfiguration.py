@@ -13,6 +13,7 @@
 # that they have been altered from the originals.
 
 """Model and schema for backend configuration."""
+from collections import defaultdict
 
 from marshmallow.validate import Length, OneOf, Range, Regexp
 
@@ -20,6 +21,7 @@ from qiskit.validation import BaseModel, BaseSchema, bind_schema
 from qiskit.validation.fields import (Boolean, DateTime, Integer, List, Nested, String,
                                       Complex, Float, Dict, InstructionParameter)
 from qiskit.validation.validate import PatternProperties
+from qiskit.pulse.exceptions import PulseError
 
 
 class GateConfigSchema(BaseSchema):
@@ -205,6 +207,11 @@ class BackendConfiguration(BaseModel):
         self.open_pulse = open_pulse
         self.memory = memory
         self.max_shots = max_shots
+        if kwargs['coupling_map']:
+            self.coupling_map = defaultdict(set)
+            # TODO: if I don't pop, it fails and isn't applied, but if I do, it's not validated
+            for control, target in kwargs.pop('coupling_map'):
+                self.coupling_map[control].add(target)
 
         super().__init__(**kwargs)
 
@@ -300,3 +307,29 @@ class PulseBackendConfiguration(BackendConfiguration):
                          meas_lo_range=meas_lo_range, dt=dt, dtm=dtm,
                          rep_times=rep_times, meas_kernels=meas_kernels,
                          discriminators=discriminators, **kwargs)
+
+    def describe(self, channel):
+        """
+        Return a basic description of the channel dependency. Derived channels are given weights
+        which describe how their frames are linked to other frames.
+
+        For instance, the backend could be configured with this setting:
+            u_channel_lo = [
+                [UchannelLO(q=0, scale=1. + 0.j)],
+                [UchannelLO(q=0, scale=-1. + 0.j), UchannelLO(q=1, scale=1. + 0.j)]
+            ]
+        Then, given that sysinfo is SystemInfo(backend):
+            sysinfo.describe(ControlChannel(1))
+            >>> {DriveChannel(0): -1, DriveChannel(1): 1}
+
+        Args:
+            channel: The derived channel to describe.
+        Raises:
+            PulseError: If channel is not a ControlChannel.
+        """
+        if not isinstance(channel, ControlChannel):
+            raise PulseError("Can only describe ControlChannels.")
+        result = {}
+        for u_chan_lo in self.u_channel_lo[channel.index]:
+            result[DriveChannel(u_chan_lo.q)] = u_chan_lo.scale
+        return result

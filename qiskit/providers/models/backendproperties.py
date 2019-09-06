@@ -13,9 +13,11 @@
 # that they have been altered from the originals.
 
 """Model and schema for backend configuration."""
-
+from collections import defaultdict
 from marshmallow.validate import Length, Regexp
 
+from qiskit.pulse.exceptions import PulseError
+from qiskit.util import _to_tuple
 from qiskit.validation import BaseModel, BaseSchema, bind_schema
 from qiskit.validation.fields import DateTime, List, Nested, Number, String, Integer
 
@@ -122,8 +124,66 @@ class BackendProperties(BaseModel):
         self.backend_name = backend_name
         self.backend_version = backend_version
         self.last_update_date = last_update_date
-        self.qubits = qubits
-        self.gates = gates
         self.general = general
 
+        self.qubits = defaultdict(dict)
+        for qubit, props in enumerate(qubits):
+            formatted_props = {}
+            for prop in props:
+                value = self._apply_prefix(prop.value, prop.unit)
+                formatted_props[prop.name] = (value, prop.date)
+                self.qubits[qubit] = formatted_props
+
+        self.gates = defaultdict(dict)
+        for gate in gates:
+            qubits = _to_tuple(gate.qubits)
+            formatted_props = {}
+            formatted_props['name'] = gate.name
+            for param in gate.parameters:
+                value = self._apply_prefix(param.value, param.unit)
+                formatted_props[param.name] = (value, param.date)
+            self.gates[gate.gate][qubits] = formatted_props
+
         super().__init__(**kwargs)
+
+    def gate_error(self, operation, qubits):
+        """
+        Return gate error estimates from backend properties.
+
+        Args:
+            operation: The operation for which to get the error.
+            qubits: The specific qubits for the operation.
+        """
+        try:
+            # Throw away datetime at index 1
+            return self.gates[operation][_to_tuple(qubits)]['gate_error'][0]
+        except KeyError:
+            raise PulseError("")
+
+    def gate_length(self, operation, qubits):
+        """
+        Return the duration of the gate in units of seconds.
+
+        Args:
+            operation: The operation for which to get the duration.
+            qubits: The specific qubits for the operation.
+        """
+        try:
+            # Throw away datetime at index 1
+            return self.gates[operation][_to_tuple(qubits)]['gate_length'][0]
+        except KeyError:
+            raise PulseError("")
+
+    def _apply_prefix(self, value, unit):
+        prefixes = {
+           'p': 1e-12, 'n': 1e-9,
+           'u': 1e-6,  'µ': 1e-6,
+           'm': 1e-3,  'k': 1e3,
+           'M': 1e6,   'G': 1e9,
+        }
+        if not unit:
+            return value
+        try:
+            return value * prefixes[unit[0]]
+        except KeyError:
+            raise PulseError("Could not understand units: {}".format(unit))
