@@ -275,3 +275,12 @@ class PulseDefaults(BaseModel):
             raise PulseError("Operation {op} for qubits {qubits} is not defined for this "
                              "system.".format(op=operation, qubits=qubits))
         self._ops_def[operation].pop(qubits)
+
+    def draw(self) -> None:
+        """
+        Visualize the topology of the device, showing qubits, their interconnections, and the
+        channels which interact with them. Optionally print a listing of the supported 1Q and
+        2Q gates.
+        """
+        # TODO: Implement the draw method.
+        raise NotImplementedError

@@ -17,11 +17,13 @@ from collections import defaultdict
 
 from marshmallow.validate import Length, OneOf, Range, Regexp
 
+from qiskit.pulse.exceptions import PulseError
+from qiskit.pulse.channels import (Channel, DriveChannel, MeasureChannel, ControlChannel,
+                                   AcquireChannel)
 from qiskit.validation import BaseModel, BaseSchema, bind_schema
 from qiskit.validation.fields import (Boolean, DateTime, Integer, List, Nested, String,
                                       Complex, Float, Dict, InstructionParameter)
 from qiskit.validation.validate import PatternProperties
-from qiskit.pulse.exceptions import PulseError
 
 
 class GateConfigSchema(BaseSchema):
@@ -292,8 +294,8 @@ class PulseBackendConfiguration(BackendConfiguration):
         self.meas_levels = meas_levels
         self.qubit_lo_range = qubit_lo_range
         self.meas_lo_range = meas_lo_range
-        self.dt = dt  # pylint: disable=invalid-name
-        self.dtm = dtm
+        self._dt = dt  # pylint: disable=invalid-name
+        self._dtm = dtm
         self.rep_times = rep_times
         self.meas_kernels = meas_kernels
         self.discriminators = discriminators
@@ -307,6 +309,80 @@ class PulseBackendConfiguration(BackendConfiguration):
                          meas_lo_range=meas_lo_range, dt=dt, dtm=dtm,
                          rep_times=rep_times, meas_kernels=meas_kernels,
                          discriminators=discriminators, **kwargs)
+
+    @property
+    def dt(self):
+        """Time delta between samples on the signal channels in seconds."""
+        return self._dt * 1.e-9
+
+    @property
+    def dtm(self):
+        """Time delta between samples on the acquisition channels in seconds."""
+        return self._dtm * 1e-9
+
+    @property
+    def sample_rate(self):
+        """Sample rate of the signal channels in Hz (1/dt)."""
+        return 1.0 / self.dt
+
+    def get_hamiltonian(self):
+        """
+        Return the LaTeX Hamiltonian string for this device and print its description if
+        provided.
+
+        Raises:
+            PulseError: If the hamiltonian is not defined.
+        """
+        ham = self.hamiltonian.get('h_latex')
+        if ham is None:
+            raise PulseError("Hamiltonian not found.")
+        print(self.hamiltonian.get('description'))
+        return ham
+
+    def drives(self, qubit):
+        """
+        Return the drive channel for the given qubit.
+
+        Raises:
+            PulseError: If the qubit is not a part of the system.
+        """
+        if qubit > self.n_qubits:
+            raise PulseError("This system does not have {} qubits.".format(qubit))
+        return DriveChannel(qubit)
+
+    def measures(self, qubit):
+        """
+        Return the measure stimulus channel for the given qubit.
+
+        Raises:
+            PulseError: If the qubit is not a part of the system.
+        """
+        if qubit > self.n_qubits:
+            raise PulseError("This system does not have {} qubits.".format(qubit))
+        return MeasureChannel(qubit)
+
+    def acquires(self, qubit):
+        """
+        Return the acquisition channel for the given qubit.
+
+        Raises:
+            PulseError: If the qubit is not a part of the system.
+        """
+        if qubit > self.n_qubits:
+            raise PulseError("This system does not have {} qubits.".format(qubit))
+        return AcquireChannel(qubit)
+
+    def controls(self, qubit):
+        """
+        Return the control channel for the given qubit.
+
+        Raises:
+            PulseError: If the qubit is not a part of the system.
+        """
+        # TODO: It's probable that controls can't map trivially to qubits.
+        if qubit > self.n_qubits:
+            raise PulseError("This system does not have {} qubits.".format(qubit))
+        return ControlChannel(qubit)
 
     def describe(self, channel):
         """
@@ -333,3 +409,12 @@ class PulseBackendConfiguration(BackendConfiguration):
         for u_chan_lo in self.u_channel_lo[channel.index]:
             result[DriveChannel(u_chan_lo.q)] = u_chan_lo.scale
         return result
+
+    def draw(self):
+        """
+        Visualize the topology of the device, showing qubits, their interconnections, and the
+        channels which interact with them. Optionally print a listing of the supported 1Q and
+        2Q gates.
+        """
+        # TODO: Implement the draw method.
+        raise NotImplementedError
