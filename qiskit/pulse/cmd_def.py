@@ -15,6 +15,8 @@
 """
 Command definition module. Relates circuit gates to pulse commands.
 """
+import warnings
+
 from typing import List, Tuple, Iterable, Union, Dict, Optional
 
 from qiskit.qobj import PulseQobjInstruction
@@ -57,6 +59,10 @@ class CmdDef:
             schedules: Keys are tuples of (cmd_name, *qubits) and values are
                 `Schedule` or `ParameterizedSchedule`
         """
+        warnings.warn("The CmdDef is being deprecated. All CmdDef methods are now supported by "
+                      "`PulseDefaults` accessible as backend.defaults() for any Pulse enabled "
+                      "system. Use defaults instead.",
+                      DeprecationWarning)
         self._cmd_dict = {}
 
         if schedules:

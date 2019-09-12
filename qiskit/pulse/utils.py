@@ -16,20 +16,20 @@
 Pulse utilities.
 """
 import warnings
-
 from typing import List, Optional, Iterable
 
 import numpy as np
 
+from qiskit.providers.models import PulseDefaults
+
 from .channels import Channel, AcquireChannel, MemorySlot
-from .cmd_def import CmdDef
 from .commands import Acquire, AcquireInstruction, Delay
 from .exceptions import PulseError
 from .interfaces import ScheduleComponent
 from .schedule import Schedule
 
 
-def align_measures(schedules: Iterable[ScheduleComponent], cmd_def: CmdDef,
+def align_measures(schedules: Iterable[ScheduleComponent], defaults: PulseDefaults,
                    cal_gate: str = 'u3', max_calibration_duration: Optional[int] = None,
                    align_time: Optional[int] = None) -> Schedule:
     """Return new schedules where measurements occur at the same physical time. Minimum measurement
@@ -40,9 +40,9 @@ def align_measures(schedules: Iterable[ScheduleComponent], cmd_def: CmdDef,
 
     Args:
         schedules: Collection of schedules to be aligned together
-        cmd_def: Command definition list
+        defaults: PulseDefaults containing schedule definitions for operations
         cal_gate: The name of the gate to inspect for the calibration time
-        max_calibration_duration: If provided, cmd_def and cal_gate will be ignored
+        max_calibration_duration: If provided, defaults and cal_gate will be ignored
         align_time: If provided, this will be used as final align time.
     Returns:
         Schedule
@@ -57,9 +57,9 @@ def align_measures(schedules: Iterable[ScheduleComponent], cmd_def: CmdDef,
         # Need time to allow for calibration pulses to be played for result classification
         if max_calibration_duration is None:
             max_calibration_duration = 0
-            for qubits in cmd_def.cmd_qubits(cal_gate):
-                cmd = cmd_def.get(cal_gate, qubits, np.pi, 0, np.pi)
-                max_calibration_duration = max(cmd.duration, max_calibration_duration)
+            for qubits in defaults.op_qubits(cal_gate):
+                sched = defaults.get(cal_gate, qubits, np.pi, 0, np.pi)
+                max_calibration_duration = max(sched.duration, max_calibration_duration)
 
         # Schedule the acquires to be either at the end of the needed calibration time, or when the
         # last acquire is scheduled, whichever comes later
