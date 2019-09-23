@@ -27,10 +27,21 @@ from .exceptions import PulseError
 # pylint: disable=missing-return-doc
 
 
+ScheduleDatum = namedtuple('ScheduleDatum',
+                           ['time',       # int 
+                            'schedule'])  # Union[CommandSchedule, Schedule]
+
+
+CommandSchedule = namedtuple('CommandSchedule', ['command', 'channel'])
+
+
+Interval = namedtuple('Interval', ['start', 'stop'])
+
+
 class Schedule():
     """"""
     # pylint: disable=missing-type-doc
-    def __init__(self, *schedules: List[Union[Schedule, Tuple[int, Schedule]]],
+    def __init__(self, *schedules: List[Union['Schedule', Tuple[int, 'Schedule']]],
                  name: Optional[str] = None):
         """Create empty schedule.
 
@@ -47,6 +58,8 @@ class Schedule():
         self._duration = 0  # TODO
         self._buffer = 0  # TODO
         self._data = []  # List[ScheduleDatum]
+        for sched in schedules:
+            self.insert(0, sched)  # so slow
 
     @property
     def name(self) -> str:
@@ -63,6 +76,7 @@ class Schedule():
     @property
     def channels(self) -> Tuple[Channel]:
         """Returns channels that this schedule uses."""
+        # TODO This can be made faster
         return tuple(self._timeslots.keys())
 
     def ch_start_time(self, *channels: List[Channel]) -> int:
@@ -71,7 +85,10 @@ class Schedule():
         Args:
             *channels: Supplied channels
         """
-        return min([self._timeslots[channel][0].start for channel in channels])
+        try:
+            return min([self._timeslots[channel][0].start for channel in channels])
+        except IndexError:
+            return 0
 
     def ch_stop_time(self, *channels: List[Channel]) -> int:
         """Return maximum time over supplied channels.
@@ -79,12 +96,24 @@ class Schedule():
         Args:
             *channels: Supplied channels
         """
-        return max([self._timeslots[channel][-1].stop for channel in channels])
+        max_stop = 0
+        for intervals in [self._timeslots[channel] for channel in channels]:
+            if intervals:
+                max_stop = max(intervals[-1].stop, max_stop)
+            # return max([self._timeslots[channel][-1].stop for channel in channels])
+        return max_stop
 
     @property
-    def instructions(self) -> Tuple[Tuple[int, 'ScheduleDatum??'], ...]:
+    def instructions(self) -> Tuple[Tuple[int, 'ScheduleDatum'], ...]:  #??
         """Get time-ordered instructions from Schedule tree."""
-        pass
+        insts = []
+        for time, schedule in self._data:
+            if isinstance(schedule, CommandSchedule):
+                insts.append((time, schedule))
+            else:
+                for inst_time, inst in schedule.instructions:
+                    insts.append((time + inst_time), inst)
+        return insts
 
     def shift(self, time: int, name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule shifted forward by `time`.
@@ -93,9 +122,13 @@ class Schedule():
             time: Time to shift by
             name: Name of the new schedule. Defaults to name of self
         """
-        pass
+        sched = Schedule(name=self.name)
+        for inst_time, inst_sched in self._data:
+            sched.insert(time + inst_time, inst_sched.command, inst_sched.channel)
+        return sched
 
-    def insert(self, start_time: int, schedule: Schedule, buffer: bool = False,
+    def insert(self, start_time: int, command: Command, channel: Channel,
+               schedule: 'Schedule' = None, buffer: bool = False,
                name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule with `schedule` inserted within `self` at `start_time`.
 
@@ -105,7 +138,16 @@ class Schedule():
             buffer: Whether to obey buffer when inserting
             name: Name of the new schedule. Defaults to name of self
         """
-        pass
+        # TODO dont modify
+        sched = CommandSchedule(command=command, channel=channel)
+        stop_time = start_time + command.duration
+
+        # TODO cannot append
+        self._timeslots[channel].append(Interval(start=start_time, stop=stop_time))
+
+        self._duration = max(self.duration, stop_time)
+        sched_datum = ScheduleDatum(time=start_time, schedule=sched)
+        self._data.append(sched_datum)
 
     def append(self, command: Command, channel: Channel, buffer: bool = True,
                name: Optional[str] = None) -> 'Schedule':
@@ -119,18 +161,23 @@ class Schedule():
             buffer: Whether to obey buffer when appending
             name: Name of the new schedule. Defaults to name of self
         """
+        # TODO dont modify
         sched = CommandSchedule(command=command, channel=channel)
         start_time = self.ch_stop_time(channel)
         stop_time = start_time + command.duration
         self._timeslots[channel].append(Interval(start=start_time, stop=stop_time))
         self._duration = max(self.duration, stop_time)
         sched_datum = ScheduleDatum(time=start_time, schedule=sched)
+        self._data.append(sched_datum)
 
     def flatten(self) -> 'Schedule':
         """Return a new schedule which is the flattened schedule contained all `instructions`."""
-        pass
+        sched = Schedule(self.name)
+        for time, inst in self.instructions:
+            sched.insert(time, inst)
+        return sched
 
-    def __eq__(self, other: Schedule) -> bool:
+    def __eq__(self, other: 'Schedule') -> bool:
         """Test if two Schedules are equal.
 
         Equality is checked by verifying there is an equal instruction at every time
@@ -145,11 +192,11 @@ class Schedule():
         """
         pass
 
-    def __add__(self, other: Schedule) -> 'Schedule':
+    def __add__(self, other: 'Schedule') -> 'Schedule':
         """Return a new schedule with `other` inserted within `self` at `start_time`."""
         pass
 
-    def __or__(self, other: Schedule) -> 'Schedule':
+    def __or__(self, other: 'Schedule') -> 'Schedule':
         """Return a new schedule which is the union of `self` and `other`."""
         pass
 
@@ -159,7 +206,6 @@ class Schedule():
 
     def __repr__(self):
         res = 'Schedule("name=%s", ' % self._name if self._name else 'Schedule('
-        res += '%d, ' % self.start_time
         instructions = [repr(instr) for instr in self.instructions]
         res += ', '.join([str(i) for i in instructions[:50]])
         if len(instructions) > 50:
@@ -167,7 +213,7 @@ class Schedule():
         return res + ')'
 
     @property
-    def timeslots(self) -> TimeslotCollection:
+    def timeslots(self) -> Dict[Channel, Interval]:
         warnings.warn("The timeslots property is becoming private. Do not try to access it in the "
                       "future.", DeprecationWarning)
         return self._timeslots
@@ -192,8 +238,9 @@ class Schedule():
         """
         warnings.warn("ch_duration is deprecated, use ch_stop_time instead.",
                       DeprecationWarning)
+        return self.ch_stop_time(channels)
 
-    def union(self, *schedules: Union[Schedule, Tuple[int, Schedule]],
+    def union(self, *schedules: Union['Schedule', Tuple[int, 'Schedule']],
               name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule which is the union of both `self` and `schedules`.
 
@@ -205,15 +252,13 @@ class Schedule():
                       "instead.", DeprecationWarning)
 
 
-ScheduleDatum = namedtuple('ScheduleDatum',
-                           ['time',       # int 
-                            'schedule'])  # Union[CommandSchedule, Schedule]
 
 
-CommandSchedule = namedtuple('CommandSchedule', ['command', 'channel'])
 
 
-Interval = namedtuple('CommandSchedule', ['start', 'stop'])
+
+
+
 
 
 class ParameterizedSchedule:
