@@ -23,8 +23,8 @@ from qiskit.test import QiskitTestCase
 from qiskit.test.mock import FakeOpenPulse2Q
 from qiskit.qobj.converters import QobjToInstructionConverter
 from qiskit.qobj import PulseQobjInstruction
-from qiskit.pulse import SamplePulse, Schedule, PulseError
-from qiskit.pulse.channels import DriveChannel
+from qiskit.pulse import SamplePulse, FrameChange, Schedule, PulseError
+from qiskit.pulse.channels import DriveChannel, ControlChannel
 from qiskit.pulse.schedule import ParameterizedSchedule
 
 
@@ -199,6 +199,24 @@ class TestPulseDefaults(QiskitTestCase):
         self.assertFalse(np.allclose(
             original_sched.instructions[0][1].command.samples,
             new_pulse_samples))
+
+    def test_replace_pulse_shifts_time(self):
+        """Test that instructions following a replaced pulse are shifted."""
+        original_sched = self.defs.get('cx', (0, 1), P2=0)
+        self.defs.replace_pulse('test_pulse_1', [0.j, 0.1j, 1j, 0.5 + 0j])
+        new_sched = self.defs.get('cx', (0, 1), P2=0)
+
+        test_pulse_1 = SamplePulse(name='test_pulse_1',
+                                   samples=[0.j, 0.1j, 1j, 0.5 + 0j])
+        ref_sched = Schedule(name='cx')
+        ref_sched |= test_pulse_1(DriveChannel(0))
+        ref_sched |= SamplePulse(name='test_pulse_2',
+                                 samples=[0.j, 0.1j, 1j])(ControlChannel(0)) << 12
+        ref_sched |= FrameChange(phase=1.)(DriveChannel(1)) << 2
+        ref_sched |= test_pulse_1(DriveChannel(1)) << 22
+        ref_sched |= FrameChange(phase=2.1)(DriveChannel(1)) << 22
+
+        self.assertEqual(new_sched, ref_sched)
 
     def test_repr(self):
         """Test that __repr__ method works."""

@@ -23,7 +23,7 @@ from qiskit.util import _to_tuple
 from qiskit.validation import BaseModel, BaseSchema, bind_schema
 from qiskit.validation.base import ObjSchema
 from qiskit.validation.fields import Integer, List as QList, Nested, Number, String
-from qiskit.qobj import PulseLibraryItemSchema, PulseQobjInstructionSchema, PulseLibraryItem
+from qiskit.qobj import PulseLibraryItemSchema, PulseQobjInstructionSchema, PulseLibraryItem, PulseQobjInstruction
 from qiskit.qobj.converters import QobjToInstructionConverter
 from qiskit.pulse import CmdDef
 from qiskit.pulse.schedule import Schedule, ParameterizedSchedule
@@ -142,7 +142,6 @@ class PulseDefaults(BaseModel):
         self._meas_freq_est_ghz = meas_freq_est
         self._qubit_freq_est_hz = [freq * 1e9 for freq in qubit_freq_est]
         self._meas_freq_est_hz = [freq * 1e9 for freq in meas_freq_est]
-        # TODO: These should be massaged for the user
         self.pulse_library = pulse_library
         self.cmd_def = cmd_def
 
@@ -205,15 +204,26 @@ class PulseDefaults(BaseModel):
             PulseError: If there was no pulse with the given name by default.
         """
         try:
-            self.converter.bind_name.get_bound_method(name)
+            old_duration = self.converter.bind_name.get_bound_method(name)(
+                self.converter, PulseQobjInstruction(name=name, t0=0, ch='d0')).duration
+            difference_in_duration = len(samples) - old_duration
         except PulseError:
             raise PulseError("Tried to replace pulse '{}' but it is not present in the pulse "
                              "library.".format(name))
         self.converter.bind_pulse(PulseLibraryItem(name=name, samples=samples))
+        import ipdb; ipdb.set_trace()
         for op in self.__pulse_library_usage[name]:
-            schedule = ParameterizedSchedule(*[self.converter(inst) for inst in op.sequence],
-                                             name=op.name)
-            self._ops_def[op.name][_to_tuple(op.qubits)] = schedule
+            additional_shift_time = 0
+            instructions = []
+            for inst in op.sequence:
+                # TODO: This should only be added if this inst starts after the original end of the pulse
+                # TODO: This doesn't handle any input order of instructions, assumes sorted
+                inst.t0 += additional_shift_time
+                instructions.append(self.converter(inst))
+                if inst.name == name:
+                    additional_shift_time += difference_in_duration
+            self._ops_def[op.name][_to_tuple(op.qubits)] = ParameterizedSchedule(*instructions,
+                                                                                 name=op.name)
 
     def ops(self) -> List[str]:
         """
