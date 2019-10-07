@@ -15,7 +15,7 @@
 """
 Instruction = Leaf node of schedule.
 """
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Set
 
 from qiskit.pulse.channels import Channel
 from qiskit.pulse.interfaces import ScheduleComponent
@@ -38,7 +38,7 @@ class Instruction(ScheduleComponent):
         """
         self._command = command
         self._name = name if name else command.name
-        self._channels = channels
+        self._channels = set(channels)
         self._duration = command.duration
         self._timeslots = {channel: [Interval(start=0, stop=command.duration)]
                            for channel in channels}
@@ -58,7 +58,7 @@ class Instruction(ScheduleComponent):
         return self._command
 
     @property
-    def channels(self) -> Tuple[Channel]:
+    def channels(self) -> Set[Channel]:
         """Returns channels that this schedule uses."""
         return self._channels
 

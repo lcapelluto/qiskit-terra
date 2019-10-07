@@ -19,9 +19,9 @@ import abc
 from typing import List, Tuple, Iterable, Union, Dict, Callable, Set, Optional, Type
 
 from .channels import Channel
+from .commands import Delay
 from .interfaces import ScheduleComponent
 from .exceptions import PulseError
-from .utils import Interval, insertion_index
 
 # pylint: disable=missing-return-doc
 
@@ -29,6 +29,7 @@ from .utils import Interval, insertion_index
 class Schedule(ScheduleComponent):
     """Schedule of `ScheduleComponent`s. The composite node of a schedule tree."""
     # pylint: disable=missing-type-doc
+
     def __init__(self, *schedules: List[Union[ScheduleComponent, Tuple[int, ScheduleComponent]]],
                  name: Optional[str] = None):
         """Create empty schedule.
@@ -43,23 +44,15 @@ class Schedule(ScheduleComponent):
         """
         self._name = name
         self._duration = 0
+        self._channels = set()
+        self._timeslots = {}  # Dict[Channel: int]
 
-        self._timeslots = {}  # Dict[Channel: List[Interval]]
-        _children = []
         for sched_pair in schedules:
-            if isinstance(sched_pair, list):
-                sched_pair = tuple(sched_pair)
-            if not isinstance(sched_pair, tuple):
-                # recreate as sequence starting at 0.
-                sched_pair = (0, sched_pair)
-            _children.append(sched_pair)
-            insert_time, sched = sched_pair
-            try:
-                self._add_timeslots(insert_time, sched)
-            except PulseError as ts_err:
-                raise PulseError('Child schedules {0} overlap.'.format(schedules)) from ts_err
+            if isinstance(sched_pair, (list, tuple)):
+                self.insert(sched_pair[0], sched_pair[1])
+            else:
+                self.insert(0, sched_pair[1])
 
-        self.__children = tuple(_children)
         self._buffer = max([child.buffer for _, child in _children]) if _children else 0
 
     @property
@@ -67,29 +60,17 @@ class Schedule(ScheduleComponent):
         return self._name
 
     @property
-    def timeslots(self) -> Dict[Channel, Interval]:
-        return self._timeslots
-
-    @property
     def duration(self) -> int:
         return self._duration
-
-    @property
-    def start_time(self) -> int:
-        return self.ch_start_time(*self.channels)
-
-    @property
-    def stop_time(self) -> int:
-        return self.duration
 
     @property
     def buffer(self) -> int:
         return self._buffer
 
     @property
-    def channels(self) -> Tuple[Channel]:
+    def channels(self) -> Set[Channel]:
         """Returns channels that this schedule uses."""
-        return tuple(self._timeslots.keys())
+        return self._channels
 
     @property
     def _children(self) -> Tuple[Tuple[int, ScheduleComponent], ...]:
@@ -112,34 +93,9 @@ class Schedule(ScheduleComponent):
         Args:
             *channels: Supplied channels
         """
-        warnings.warn("ch_duration is deprecated, use ch_stop_time instead.",
-                      DeprecationWarning)
-        return self.ch_stop_time(channels)
-
-    def ch_start_time(self, *channels: List[Channel]) -> int:
-        """
-        Return minimum start time over supplied channels. Return 0 if none of the channels
-        have been scheduled on.
-
-        Args:
-            *channels: Supplied channels
-        """
         chan_intervals = [self._timeslots[chan] for chan in channels if chan in self._timeslots]
         if chan_intervals:
-            return min([intervals[0].start for intervals in chan_intervals])
-        return 0
-
-    def ch_stop_time(self, *channels: List[Channel]) -> int:
-        """
-        Return maximum start time over supplied channels. Return 0 if none of the channels
-        have been scheduled on.
-
-        Args:
-            *channels: Supplied channels
-        """
-        chan_intervals = [self._timeslots[chan] for chan in channels if chan in self._timeslots]
-        if chan_intervals:
-            return max(intervals[-1].stop for intervals in chan_intervals)
+            return max(chan_intervals)
         return 0
 
     def _instructions(self, time: int = 0) -> Iterable[Tuple[int, 'Instruction']]:
@@ -200,7 +156,11 @@ class Schedule(ScheduleComponent):
         """
         if name is None:
             name = self.name
-        return Schedule((time, self), name=name)
+        sched = Schedule(name=name)
+        for chan in self.channels:
+            sched += Delay(time)(chan)
+        sched += self
+        return sched
 
     def insert(self, start_time: int, schedule: ScheduleComponent, buffer: bool = False,
                name: Optional[str] = None) -> 'Schedule':
@@ -214,7 +174,18 @@ class Schedule(ScheduleComponent):
         """
         if buffer and schedule.buffer and start_time > 0:
             start_time += self.buffer
-        return self.union((start_time, schedule), name=name)
+        if self.ch_duration(schedule.channels) > start_time:
+            raise PulseError()
+        if name is None:
+            name = self.name
+
+        new_sched = Schedule(name=name)
+        new_sched += self
+        for chan in schedule.channels:
+            delay_time = start_time - new_sched.ch_duration(chan)
+            new_sched += Delay(delay_time)(chan)
+        new_sched += schedule
+        return new_sched 
 
     def append(self, schedule: ScheduleComponent, buffer: bool = True,
                name: Optional[str] = None) -> 'Schedule':
@@ -228,9 +199,41 @@ class Schedule(ScheduleComponent):
             buffer: Whether to obey buffer when appending
             name: Name of the new schedule. Defaults to name of self
         """
-        common_channels = set(self.channels) & set(schedule.channels)
-        time = self.ch_stop_time(*common_channels)
-        return self.insert(time, schedule, buffer=buffer, name=name)
+        if name is None:
+            name = self.name
+        # common_channels = set(self.channels) & set(schedule.channels)
+        # time = self.ch_stop_time(*common_channels)
+        # TODO
+        # return self.insert(time, schedule, buffer=buffer, name=name)
+
+        new_sched = Schedule(name=name)
+        # This is a mess
+        new_sched.__children = copy(self.__children)
+        new_sched._union((0, self))
+        for sched_pair in schedules:
+            if not isinstance(sched_pair, tuple):
+                sched_pair = (0, sched_pair)
+            new_sched._union(sched_pair)
+        return new_sched
+
+    def _union(self, other: Tuple[int, ScheduleComponent]) -> 'Schedule':
+        """Mutably union `self` and `other` Schedule with shift time.
+
+        Args:
+            other: Schedule with shift time to be take the union with this `Schedule`.
+        """
+        shift_time, sched = other
+        self._add_timeslots(shift_time, sched)
+        self._buffer = max(self.buffer, sched.buffer)
+
+        if isinstance(sched, Schedule):
+            shifted_children = sched._children
+            if shift_time != 0:
+                shifted_children = tuple((t + shift_time, child) for t, child in shifted_children)
+            self.__children += shifted_children
+        else:  # isinstance(sched, Instruction)
+            self.__children += (other,)
+
 
     def flatten(self) -> 'Schedule':
         """Return a new schedule which is the flattened schedule contained all `instructions`."""
@@ -369,25 +372,25 @@ class Schedule(ScheduleComponent):
             time: The time to insert the schedule into this.
             schedule: The schedule to insert into this.
         """
-        self._duration = max(self._duration, time + schedule.duration)
+    #     self._duration = max(self._duration, time + schedule.duration)
 
-        for channel in schedule.channels:
-            channel_intervals = schedule._timeslots[channel]
-            channel_intervals = [Interval(start=i.start + time, stop=i.stop + time)
-                                 for i in channel_intervals]
+    #     for channel in schedule.channels:
+    #         channel_intervals = schedule._timeslots[channel]
+    #         channel_intervals = [Interval(start=i.start + time, stop=i.stop + time)
+    #                              for i in channel_intervals]
 
-            if channel not in self._timeslots:
-                self._timeslots[channel] = channel_intervals
-                continue
+    #         if channel not in self._timeslots:
+    #             self._timeslots[channel] = channel_intervals
+    #             continue
 
-            for idx, interval in enumerate(channel_intervals):
-                if interval.start >= self._timeslots[channel][-1].stop:
-                    # Can append the remaining intervals
-                    self._timeslots[channel].extend(channel_intervals[idx:])
-                    break
-                else:
-                    index = insertion_index(self._timeslots[channel], interval)
-                    self._timeslots[channel].insert(index, interval)
+    #         for idx, interval in enumerate(channel_intervals):
+    #             if interval.start >= self._timeslots[channel][-1].stop:
+    #                 # Can append the remaining intervals
+    #                 self._timeslots[channel].extend(channel_intervals[idx:])
+    #                 break
+    #             else:
+    #                 index = insertion_index(self._timeslots[channel], interval)
+    #                 self._timeslots[channel].insert(index, interval)
 
     def __eq__(self, other: ScheduleComponent) -> bool:
         """Test if two ScheduleComponents are equal.
@@ -440,6 +443,47 @@ class Schedule(ScheduleComponent):
         if len(instructions) > 50:
             return res + ', ...)'
         return res + ')'
+
+    @property
+    def timeslots(self) -> Dict[Channel, int]:
+        warnings.warn("Timeslots only track end time now.")
+        return self._timeslots
+
+    @property
+    def start_time(self) -> int:
+        warnings.warn("start_time is deprecated, Schedules start at time 0.",
+                      DeprecationWarning)
+        return 0
+
+    @property
+    def stop_time(self) -> int:
+        warnings.warn("stop_time is deprecated, use duration instead.",
+                      DeprecationWarning)
+        return self.duration
+
+    def ch_start_time(self, *channels: List[Channel]) -> int:
+        """
+        Return minimum start time over supplied channels. Return 0 if none of the channels
+        have been scheduled on.
+
+        Args:
+            *channels: Supplied channels
+        """
+        warnings.warn("ch_start_time is deprecated, Schedules start at time 0.",
+                      DeprecationWarning)
+        return 0
+
+    def ch_stop_time(self, *channels: List[Channel]) -> int:
+        """
+        Return maximum start time over supplied channels. Return 0 if none of the channels
+        have been scheduled on.
+
+        Args:
+            *channels: Supplied channels
+        """
+        warnings.warn("ch_stop_time is deprecated, use ch_duration instead.",
+                      DeprecationWarning)
+        return self.ch_duration(channels)
 
 
 class ParameterizedSchedule:
