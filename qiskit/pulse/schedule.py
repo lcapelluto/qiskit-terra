@@ -19,17 +19,25 @@ import abc
 from typing import List, Tuple, Iterable, Union, Dict, Callable, Set, Optional, Type
 
 from .channels import Channel
-from .interfaces import ScheduleComponent
+from .commands import Command
 from .exceptions import PulseError
 from .utils import Interval, insertion_index
 
 # pylint: disable=missing-return-doc
 
+ScheduleDatum = namedtuple('ScheduleDatum',
+                           ['time',       # int
+                            'schedule'])  # Union[CommandSchedule, Schedule]
+CommandSchedule = namedtuple('CommandSchedule', ['command', 'channel'])
 
-class Schedule(ScheduleComponent):
-    """Schedule of `ScheduleComponent`s. The composite node of a schedule tree."""
+
+# TODO: accept command, channel
+
+class Schedule():
+    """"""
+
     # pylint: disable=missing-type-doc
-    def __init__(self, *schedules: List[Union[ScheduleComponent, Tuple[int, ScheduleComponent]]],
+    def __init__(self, *schedules: List[Union['Schedule', Tuple[int, 'Schedule']]],
                  name: Optional[str] = None):
         """Create empty schedule.
 
@@ -43,24 +51,24 @@ class Schedule(ScheduleComponent):
         """
         self._name = name
         self._duration = 0
-
         self._timeslots = {}  # Dict[Channel: List[Interval]]
-        _children = []
+        self._buffer = 0  # TODO
+        self._data = []  # TODO
+
+        # TODO format first
         for sched_pair in schedules:
             if isinstance(sched_pair, list):
                 sched_pair = tuple(sched_pair)
             if not isinstance(sched_pair, tuple):
                 # recreate as sequence starting at 0.
                 sched_pair = (0, sched_pair)
-            _children.append(sched_pair)
-            insert_time, sched = sched_pair
+
+            time, sched = sched_pair
+            self._data.append(ScheduleDatum(time=time, schedule=schedule))
             try:
-                self._add_timeslots(insert_time, sched)
+                self._add_timeslots(time, sched)
             except PulseError as ts_err:
                 raise PulseError('Child schedules {0} overlap.'.format(schedules)) from ts_err
-
-        self.__children = tuple(_children)
-        self._buffer = max([child.buffer for _, child in _children]) if _children else 0
 
     @property
     def name(self) -> str:
@@ -92,19 +100,9 @@ class Schedule(ScheduleComponent):
         return tuple(self._timeslots.keys())
 
     @property
-    def _children(self) -> Tuple[Tuple[int, ScheduleComponent], ...]:
-        return self.__children
-
-    @property
     def instructions(self) -> Tuple[Tuple[int, 'Instruction'], ...]:
         """Get time-ordered instructions from Schedule tree."""
-
-        def key(time_inst_pair):
-            inst = time_inst_pair[1]
-            return (time_inst_pair[0], inst.duration,
-                    min(chan.index for chan in inst.channels))
-
-        return tuple(sorted(self._instructions(), key=key))
+        pass
 
     def ch_duration(self, *channels: List[Channel]) -> int:
         """Return duration of schedule over supplied channels.
@@ -142,20 +140,7 @@ class Schedule(ScheduleComponent):
             return max(intervals[-1].stop for intervals in chan_intervals)
         return 0
 
-    def _instructions(self, time: int = 0) -> Iterable[Tuple[int, 'Instruction']]:
-        """Iterable for flattening Schedule tree.
-
-        Args:
-            time: Shifted time due to parent
-
-        Yields:
-            Tuple[int, Instruction]: Tuple containing time `Instruction` starts
-                at and the flattened `Instruction`.
-        """
-        for insert_time, child_sched in self._children:
-            yield from child_sched._instructions(time + insert_time)
-
-    def union(self, *schedules: Union[ScheduleComponent, Tuple[int, ScheduleComponent]],
+    def union(self, *schedules: Union['Schedule', Tuple[int, 'Schedule']],
               name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule which is the union of both `self` and `schedules`.
 
@@ -163,33 +148,15 @@ class Schedule(ScheduleComponent):
             *schedules: Schedules to be take the union with this `Schedule`.
             name: Name of the new schedule. Defaults to name of self
         """
-        if name is None:
-            name = self.name
-        new_sched = Schedule(name=name)
-        new_sched._union((0, self))
-        for sched_pair in schedules:
-            if not isinstance(sched_pair, tuple):
-                sched_pair = (0, sched_pair)
-            new_sched._union(sched_pair)
-        return new_sched
+        pass
 
-    def _union(self, other: Tuple[int, ScheduleComponent]) -> 'Schedule':
+    def _union(self, other: Tuple[int, 'Schedule']) -> 'Schedule':
         """Mutably union `self` and `other` Schedule with shift time.
 
         Args:
             other: Schedule with shift time to be take the union with this `Schedule`.
         """
-        shift_time, sched = other
-        self._add_timeslots(shift_time, sched)
-        self._buffer = max(self.buffer, sched.buffer)
-
-        if isinstance(sched, Schedule):
-            shifted_children = sched._children
-            if shift_time != 0:
-                shifted_children = tuple((t + shift_time, child) for t, child in shifted_children)
-            self.__children += shifted_children
-        else:  # isinstance(sched, Instruction)
-            self.__children += (other,)
+        pass
 
     def shift(self, time: int, name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule shifted forward by `time`.
@@ -198,11 +165,9 @@ class Schedule(ScheduleComponent):
             time: Time to shift by
             name: Name of the new schedule. Defaults to name of self
         """
-        if name is None:
-            name = self.name
-        return Schedule((time, self), name=name)
+        pass
 
-    def insert(self, start_time: int, schedule: ScheduleComponent, buffer: bool = False,
+    def insert(self, start_time: int, schedule: 'Schedule', buffer: bool = False,
                name: Optional[str] = None) -> 'Schedule':
         """Return a new schedule with `schedule` inserted within `self` at `start_time`.
 
@@ -212,11 +177,9 @@ class Schedule(ScheduleComponent):
             buffer: Whether to obey buffer when inserting
             name: Name of the new schedule. Defaults to name of self
         """
-        if buffer and schedule.buffer and start_time > 0:
-            start_time += self.buffer
-        return self.union((start_time, schedule), name=name)
+        pass
 
-    def append(self, schedule: ScheduleComponent, buffer: bool = True,
+    def append(self, schedule: 'Schedule', buffer: bool = True,
                name: Optional[str] = None) -> 'Schedule':
         r"""Return a new schedule with `schedule` inserted at the maximum time over
         all channels shared between `self` and `schedule`.
@@ -228,13 +191,14 @@ class Schedule(ScheduleComponent):
             buffer: Whether to obey buffer when appending
             name: Name of the new schedule. Defaults to name of self
         """
-        common_channels = set(self.channels) & set(schedule.channels)
-        time = self.ch_stop_time(*common_channels)
-        return self.insert(time, schedule, buffer=buffer, name=name)
+        pass
 
     def flatten(self) -> 'Schedule':
         """Return a new schedule which is the flattened schedule contained all `instructions`."""
-        return Schedule(*self.instructions, name=self.name)
+        sched = Schedule(self.name)
+        for time, inst in self.instructions:
+            sched.insert(time, inst)
+        return sched
 
     def filter(self, *filter_funcs: List[Callable],
                channels: Optional[Iterable[Channel]] = None,
@@ -252,7 +216,7 @@ class Schedule(ScheduleComponent):
         If no arguments are provided, this schedule is returned.
 
         Args:
-            filter_funcs: A list of Callables which take a (int, ScheduleComponent) tuple and
+            filter_funcs: A list of Callables which take a (int, 'Schedule') tuple and
                           return a bool
             channels: For example, [DriveChannel(0), AcquireChannel(0)]
             instruction_types: For example, [PulseInstruction, AcquireInstruction]
@@ -360,7 +324,7 @@ class Schedule(ScheduleComponent):
                                           interactive=interactive, table=table,
                                           label=label, framechange=framechange)
 
-    def _add_timeslots(self, time: int, schedule: ScheduleComponent) -> None:
+    def _add_timeslots(self, time: int, schedule: 'Schedule') -> None:
         """
         Update all time tracking within this schedule based on the given schedule. A PulseError
         will be raised when looking for an insertion index if timeslots overlap.
@@ -389,8 +353,8 @@ class Schedule(ScheduleComponent):
                     index = insertion_index(self._timeslots[channel], interval)
                     self._timeslots[channel].insert(index, interval)
 
-    def __eq__(self, other: ScheduleComponent) -> bool:
-        """Test if two ScheduleComponents are equal.
+    def __eq__(self, other: 'Schedule') -> bool:
+        """Test if two 'Schedule's are equal.
 
         Equality is checked by verifying there is an equal instruction at every time
         in `other` for every instruction in this Schedule.
@@ -420,11 +384,11 @@ class Schedule(ScheduleComponent):
 
         return True
 
-    def __add__(self, other: ScheduleComponent) -> 'Schedule':
+    def __add__(self, other: 'Schedule') -> 'Schedule':
         """Return a new schedule with `other` inserted within `self` at `start_time`."""
         return self.append(other)
 
-    def __or__(self, other: ScheduleComponent) -> 'Schedule':
+    def __or__(self, other: 'Schedule') -> 'Schedule':
         """Return a new schedule which is the union of `self` and `other`."""
         return self.union(other)
 
@@ -433,8 +397,7 @@ class Schedule(ScheduleComponent):
         return self.shift(time)
 
     def __repr__(self):
-        res = 'Schedule("name=%s", ' % self._name if self._name else 'Schedule('
-        res += '%d, ' % self.start_time
+        res = 'Schedule(name=%s, ' % self._name if self._name else 'Schedule('
         instructions = [repr(instr) for instr in self.instructions]
         res += ', '.join([str(i) for i in instructions[:50]])
         if len(instructions) > 50:
@@ -442,6 +405,7 @@ class Schedule(ScheduleComponent):
         return res + ')'
 
 
+# TODO
 class ParameterizedSchedule:
     """Temporary parameterized schedule class.
 
