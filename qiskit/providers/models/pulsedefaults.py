@@ -106,104 +106,6 @@ class Command(BaseModel):
         super().__init__(**kwargs)
 
 
-@bind_schema(PulseDefaultsSchema)
-class PulseDefaults(BaseModel):
-    """Description of default settings for Pulse systems. These are operations or settings that
-    may be good starting points for the Pulse user. The user may modify these defaults through
-    the provided methods to build a reference to custom operations, which may in turn be used
-    for building Schedules or converting circuits to Schedules.
-    """
-
-    def __init__(self,
-                 qubit_freq_est: List[float],
-                 meas_freq_est: List[float],
-                 buffer: int,
-                 pulse_library: List[PulseLibraryItem],
-                 cmd_def: List[Command],
-                 **kwargs: Dict[str, Any]):
-        """
-        Validate and reformat transport layer inputs to initialize this.
-
-        Args:
-            qubit_freq_est: Estimated qubit frequencies in GHz.
-            meas_freq_est: Estimated measurement cavity frequencies in GHz.
-            buffer: Default buffer time (in units of dt) between pulses.
-            pulse_library: Pulse name and sample definitions.
-            cmd_def: Operation name and definition in terms of Commands.
-            **kwargs: Other attributes for the super class.
-        """
-        super().__init__(**kwargs)
-
-        self._qubit_freq_est_hz = [freq * 1e9 for freq in qubit_freq_est]
-        self._meas_freq_est_hz = [freq * 1e9 for freq in meas_freq_est]
-        self.pulse_library = pulse_library
-        self.cmd_def = cmd_def
-        self.op_map = CircuitOperationToScheduleMap(cmd_def, pulse_library)
-        self.buffer = buffer
-        # if buffer != 0:
-        #     warnings.warn("The value {} was passed for buffer, but buffers are no longer "
-        #                   "supported. Please use an explicit Delay.".format(buffer),
-        #                   DeprecationWarning)
-        # Fail silently?
-
-    @property
-    def qubit_freq_est(self) -> List[float]:
-        """
-        Return the estimated resonant frequency for the given qubit in Hz.
-
-        Returns:
-            The frequency of the qubit resonance in Hz.
-        """
-        warnings.warn("The qubit frequency estimation was previously in GHz, and now is in Hz.")
-        return self._qubit_freq_est_hz
-
-    @property
-    def meas_freq_est(self) -> List[float]:
-        """
-        Return the estimated measurement stimulus frequency to readout from the given qubit.
-
-        Returns:
-            The measurement stimulus frequency in Hz.
-        """
-        warnings.warn("The measurement frequency estimation was previously in GHz, "
-                      "and now is in Hz.")
-        return self._meas_freq_est_hz
-
-    def __getattr__(self, attr: str) -> Any:
-        """
-        Pass through magic to pull Circuit operation -> Schedule methods and attributes into
-        defaults.
-
-        Args:
-            attr: The attribute of the OperationToScheduleMap to look for.
-
-        Returns:
-            The return value of the OperationToScheduleMap method. See methods below.
-
-        Raises:
-            AttributeError: If the attribute is also not found in the op_map.
-        """
-        try:
-            return getattr(self.op_map, attr)
-        except AttributeError:
-            raise AttributeError("Test: {}".format(attr))
-
-    def __str__(self):
-        return ('{name}(operations=[{ops}], n_qubits={n_qubits})'.format(
-            name=self.__class__.__name__,
-            ops=self.ops(),
-            n_qubits=len(self._qubit_freq_est_hz)))
-
-    def __repr__(self):
-        ops = repr(self.op_map)
-        qubit_freqs = [freq / 1e9 for freq in self.qubit_freq_est]
-        meas_freqs = [freq / 1e9 for freq in self.meas_freq_est]
-        qfreq = "Qubit Frequencies [GHz]\n{freqs}".format(freqs=qubit_freqs)
-        mfreq = "Measurement Frequencies [GHz]\n{freqs} ".format(freqs=meas_freqs)
-        return ("<{name}({ops}{qfreq}\n{mfreq})>"
-                "".format(name=self.__class__.__name__, ops=ops, qfreq=qfreq, mfreq=mfreq))
-
-
 class CircuitOperationToScheduleMap():
     """Class to maintain mappings from Quantum Circuit `Instruction`s to `Schedule`s.
 
@@ -469,6 +371,81 @@ class CircuitOperationToScheduleMap():
         warnings.warn("Using this PulseDefaults instance in place of CmdDef.",
                       DeprecationWarning)
         return self
+
+
+@bind_schema(PulseDefaultsSchema)
+class PulseDefaults(BaseModel, CircuitOperationToScheduleMap):
+    """Description of default settings for Pulse systems. These are operations or settings that
+    may be good starting points for the Pulse user. The user may modify these defaults through
+    the provided methods to build a reference to custom operations, which may in turn be used
+    for building Schedules or converting circuits to Schedules.
+    """
+
+    def __init__(self,
+                 qubit_freq_est: List[float],
+                 meas_freq_est: List[float],
+                 buffer: int,
+                 pulse_library: List[PulseLibraryItem],
+                 cmd_def: List[Command],
+                 **kwargs: Dict[str, Any]):
+        """
+        Validate and reformat transport layer inputs to initialize this.
+
+        Args:
+            qubit_freq_est: Estimated qubit frequencies in GHz.
+            meas_freq_est: Estimated measurement cavity frequencies in GHz.
+            buffer: Default buffer time (in units of dt) between pulses.
+            pulse_library: Pulse name and sample definitions.
+            cmd_def: Operation name and definition in terms of Commands.
+            **kwargs: Other attributes for the super class.
+        """
+        del buffer  # not supported anymore
+        BaseModel.__init__(self, **kwargs)
+
+        self._qubit_freq_est_hz = [freq * 1e9 for freq in qubit_freq_est]
+        self._meas_freq_est_hz = [freq * 1e9 for freq in meas_freq_est]
+        self.pulse_library = pulse_library
+        self.cmd_def = cmd_def
+        # self.op_map = CircuitOperationToScheduleMap(cmd_def, pulse_library)
+        CircuitOperationToScheduleMap.__init__(self, cmd_def, pulse_library)
+
+    @property
+    def qubit_freq_est(self) -> List[float]:
+        """
+        Return the estimated resonant frequency for the given qubit in Hz.
+
+        Returns:
+            The frequency of the qubit resonance in Hz.
+        """
+        warnings.warn("The qubit frequency estimation was previously in GHz, and now is in Hz.")
+        return self._qubit_freq_est_hz
+
+    @property
+    def meas_freq_est(self) -> List[float]:
+        """
+        Return the estimated measurement stimulus frequency to readout from the given qubit.
+
+        Returns:
+            The measurement stimulus frequency in Hz.
+        """
+        warnings.warn("The measurement frequency estimation was previously in GHz, "
+                      "and now is in Hz.")
+        return self._meas_freq_est_hz
+
+    def __str__(self):
+        return ('{name}(operations=[{ops}], n_qubits={n_qubits})'.format(
+            name=self.__class__.__name__,
+            ops=self.ops(),
+            n_qubits=len(self._qubit_freq_est_hz)))
+
+    def __repr__(self):
+        ops = CircuitOperationToScheduleMap.__repr__(self)
+        qubit_freqs = [freq / 1e9 for freq in self.qubit_freq_est]
+        meas_freqs = [freq / 1e9 for freq in self.meas_freq_est]
+        qfreq = "Qubit Frequencies [GHz]\n{freqs}".format(freqs=qubit_freqs)
+        mfreq = "Measurement Frequencies [GHz]\n{freqs} ".format(freqs=meas_freqs)
+        return ("<{name}({ops}{qfreq}\n{mfreq})>"
+                "".format(name=self.__class__.__name__, ops=ops, qfreq=qfreq, mfreq=mfreq))
 
 
 def _to_tuple(values):
