@@ -50,6 +50,7 @@ class CmdDef:
             pulse_library: Dictionary of `SamplePulse`s
             buffer: Buffer between instructions on channel
         """
+        from qiskit.providers.models.pulsedefaults import CircuitOperationToScheduleMap
         if buffer:
             warnings.warn("Buffers are no longer supported. Please use an explicit Delay.")
         return CircuitOperationToScheduleMap(flat_cmd_def, pulse_library)

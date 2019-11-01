@@ -34,10 +34,6 @@ class TestPulseDefaults(QiskitTestCase):
     def setUp(self):
         self.defs = FakeOpenPulse2Q().defaults()
 
-    def test_buffer(self):
-        """Test getting the buffer value."""
-        self.assertEqual(self.defs.buffer, 10)
-
     def test_freq_est(self):
         """Test extracting qubit frequencies."""
         warnings.simplefilter("ignore")
@@ -122,7 +118,7 @@ class TestPulseDefaults(QiskitTestCase):
 
     def test_parameterized_schedule(self):
         """Test adding parameterized schedule."""
-        converter = QobjToInstructionConverter([], buffer=0)
+        converter = QobjToInstructionConverter([])
         qobj = PulseQobjInstruction(name='pv', ch='u1', t0=10, val='P2*cos(np.pi*P1)')
         converted_instruction = converter(qobj)
 
@@ -138,7 +134,7 @@ class TestPulseDefaults(QiskitTestCase):
 
     def test_sequenced_parameterized_schedule(self):
         """Test parametrized schedule consists of multiple instruction. """
-        converter = QobjToInstructionConverter([], buffer=0)
+        converter = QobjToInstructionConverter([])
         qobjs = [PulseQobjInstruction(name='fc', ch='d0', t0=10, phase='P1'),
                  PulseQobjInstruction(name='fc', ch='d0', t0=20, phase='P2'),
                  PulseQobjInstruction(name='fc', ch='d0', t0=30, phase='P3')]
