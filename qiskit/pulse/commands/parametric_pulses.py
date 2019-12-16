@@ -183,11 +183,13 @@ class GaussianSquare(ParametricPulse):
 class Drag(ParametricPulse):
     """
     A pulse whose envelope is shaped by a drag pulse. This is so named by the technique
-    Derivative Removal by Adiabatic Gate (DRAG). It is constructed to reduce the frequency
-    spectrum of a normal gaussian curve near the |1>-|2> transition.
+    Derivative Removal by Adiabatic Gate (DRAG). It is a Gaussian pulse with a Gaussian
+    derivative component. The construction is designed to reduce the frequency spectrum
+    a normal gaussian curve near the |1>-|2> transition, reducing the chance of leakage
+    to the |2> state.
 
         f(x) = Gaussian + 1j * beta * d/dx [Gaussian]
-             = Gaussian + 1j * beta * (-x / sigma) [Gaussian]
+             = Gaussian + 1j * beta * (-(x - duration/2) / sigma^2) [Gaussian]
 
     where 'Gaussian' is:
         Gaussian(x, amp, sigma) = amp * exp( -(1/2) * (x - duration/2)^2 / sigma^2) )
