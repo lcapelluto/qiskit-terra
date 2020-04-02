@@ -114,13 +114,16 @@ class Acquire(Instruction):
         self._kernel = kernel
         self._discriminator = discriminator
 
-        if channels is not None:
-            super().__init__(duration, *channels, *mem_slot, *reg_slot, name=name)
-        else:
+        if channels is None:
             warnings.warn("Usage of Acquire without specifying a channel is deprecated. For "
                           "example, Acquire(1200)(AcquireChannel(0)) should be replaced by "
                           "Acquire(1200, AcquireChannel(0)).", DeprecationWarning)
-            super().__init__(duration, name=name)
+        all_channels = [group for group in [channels, mem_slot, reg_slot] if group is not None]
+        flattened_channels = []
+        for channels in all_channels:
+            flattened_channels.extend(channels)
+        super().__init__((duration, self.channel, mem_slot, reg_slot),
+                         duration, flattened_channels, name=name)
 
     @property
     def operands(self) -> Tuple[int, AcquireChannel, MemorySlot, RegisterSlot]:

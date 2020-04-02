@@ -41,12 +41,7 @@ class Snapshot(Instruction):
         self._channel = SnapshotChannel()
         if name is None:
             name = self.label
-        super().__init__(0, self.channel, name=name)
-
-    @property
-    def operands(self) -> Tuple:
-        """Return a list of instruction operands."""
-        return (self.label, self.type)
+        super().__init__((label, snapshot_type), 0, [self.channel], name=name)
 
     @property
     def label(self) -> str:

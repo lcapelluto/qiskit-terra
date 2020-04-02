@@ -45,12 +45,7 @@ class Play(Instruction):
         self._channel = channel
         if name is None:
             name = pulse.name
-        super().__init__(pulse.duration, channel, name=name)
-
-    @property
-    def operands(self) -> Tuple[Any, PulseChannel]:
-        """Return instruction operands: ``(Pulse, PulseChannel)``."""
-        return (self.pulse, self.channel)
+        super().__init__((pulse, channel), pulse.duration, [channel], name=name)
 
     @property
     def pulse(self):
