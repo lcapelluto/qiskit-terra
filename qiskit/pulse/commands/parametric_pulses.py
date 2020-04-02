@@ -20,6 +20,8 @@ import warnings
 from qiskit.pulse.pulse_lib import ParametricPulse, Gaussian, GaussianSquare, Drag, ConstantPulse
 from qiskit.pulse.channels import Channel
 
+from ..timeslots import Interval, Timeslot, TimeslotCollection
+
 
 class ParametricInstruction:
     """Instruction to drive a parametric pulse to an `PulseChannel`."""
@@ -30,4 +32,9 @@ class ParametricInstruction:
                       "duration=duration), DriveChannel(0)) -> Play(Gaussian(amp=amp, sigma=sigma,"
                       " duration=duration), DriveChannel(0)).",
                       DeprecationWarning)
-        super().__init__(command, channel, name=name)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        super().__init__((), name=name)

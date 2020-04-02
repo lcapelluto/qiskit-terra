@@ -18,6 +18,7 @@ transmitted pulses, such as ``DriveChannel``).
 from typing import Optional, Tuple, Any
 
 from ..channels import PulseChannel
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .instruction import Instruction
 
 
@@ -45,12 +46,10 @@ class Play(Instruction):
         self._channel = channel
         if name is None:
             name = pulse.name
-        super().__init__(pulse.duration, channel, name=name)
-
-    @property
-    def operands(self) -> Tuple[Any, PulseChannel]:
-        """Return instruction operands: ``(Pulse, PulseChannel)``."""
-        return (self.pulse, self.channel)
+        self._duration = pulse.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        self._command = None
+        super().__init__((pulse, channel), name=name)
 
     @property
     def pulse(self):

@@ -18,6 +18,7 @@ import warnings
 from ..channels import Channel
 from ..instructions import Delay
 from ..instructions import Instruction
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 
 
 class DelayInstruction(Instruction):
@@ -35,4 +36,9 @@ class DelayInstruction(Instruction):
                       "For example: DelayInstruction(Delay(5), DriveChannel(0)) -> "
                       "Delay(5, DriveChannel(0)).",
                       DeprecationWarning)
-        super().__init__(command, channel, name=name)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        super().__init__((), name=name)

@@ -20,6 +20,7 @@ import warnings
 from typing import Optional, Tuple
 
 from ..channels import SnapshotChannel
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .instruction import Instruction
 
 
@@ -41,12 +42,10 @@ class Snapshot(Instruction):
         self._channel = SnapshotChannel()
         if name is None:
             name = self.label
-        super().__init__(0, self.channel, name=name)
-
-    @property
-    def operands(self) -> Tuple:
-        """Return a list of instruction operands."""
-        return (self.label, self.type)
+        self._duration = 0
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, 0), self.channel))
+        self._command = None
+        super().__init__((self.label, self.type), name=name)
 
     @property
     def label(self) -> str:

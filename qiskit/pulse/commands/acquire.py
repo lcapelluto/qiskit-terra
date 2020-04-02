@@ -19,6 +19,7 @@ from typing import Optional, Union, List
 
 from ..channels import MemorySlot, RegisterSlot, AcquireChannel
 from ..exceptions import PulseError
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 
 # pylint: disable=unused-import
 
@@ -78,7 +79,20 @@ class AcquireInstruction(Instruction):
         else:
             reg_slot = []
 
-        super().__init__(command, *acquire, *mem_slot, *reg_slot, name=name)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        all_channels = []
+        if acquire:
+            all_channels.extend(acquire)
+        if mem_slot:
+            all_channels.extend(mem_slot)
+        if reg_slot:
+            all_channels.extend(reg_slot)
+        self._timeslots = TimeslotCollection(*(Timeslot(Interval(0, duration), channel)
+                                               for channel in channels if channel is not None))
+        super().__init__((), name=name)
 
         self._acquires = acquire
         self._mem_slots = mem_slot

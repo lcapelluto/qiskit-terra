@@ -19,6 +19,7 @@ from typing import Optional
 
 from ..channels import PulseChannel
 from ..pulse_lib import SamplePulse
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from ..instructions import Instruction
 
 
@@ -30,4 +31,9 @@ class PulseInstruction(Instruction):
                       "channel. For example: PulseInstruction(SamplePulse([...]), DriveChannel(0))"
                       " -> Play(SamplePulse[...], DriveChannel(0)).",
                       DeprecationWarning)
-        super().__init__(command, channel, name=name)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        super().__init__((), name=name)

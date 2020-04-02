@@ -22,6 +22,7 @@ from typing import List, Optional, Tuple, Union
 from ..channels import MemorySlot, RegisterSlot, AcquireChannel
 from ..configuration import Kernel, Discriminator
 from ..exceptions import PulseError
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .instruction import Instruction
 
 
@@ -114,19 +115,24 @@ class Acquire(Instruction):
         self._kernel = kernel
         self._discriminator = discriminator
 
-        if channels is not None:
-            super().__init__(duration, *channels, *mem_slot, *reg_slot, name=name)
-        else:
+        if channels is None:
             warnings.warn("Usage of Acquire without specifying a channel is deprecated. For "
                           "example, Acquire(1200)(AcquireChannel(0)) should be replaced by "
                           "Acquire(1200, AcquireChannel(0)).", DeprecationWarning)
-            super().__init__(duration, name=name)
-
-    @property
-    def operands(self) -> Tuple[int, AcquireChannel, MemorySlot, RegisterSlot]:
-        """Return instruction operands."""
-        return (self.duration, self.channel,
-                self.mem_slot, self.reg_slot)
+        else:
+            all_channels = []
+            if channels:
+                all_channels.extend(channels)
+            if mem_slot:
+                all_channels.extend(mem_slot)
+            if reg_slot:
+                all_channels.extend(reg_slot)
+            self._timeslots = TimeslotCollection(*(Timeslot(Interval(0, duration), channel)
+                                                   for channel in all_channels
+                                                   if channel is not None))
+        self._duration = duration
+        self._command = None
+        super().__init__((self.duration, self.channel, self.mem_slot, self.reg_slot), name=name)
 
     @property
     def channel(self) -> AcquireChannel:

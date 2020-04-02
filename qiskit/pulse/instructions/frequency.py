@@ -18,6 +18,7 @@ the frequency of a channel.
 from typing import Optional, Tuple
 
 from ..channels import PulseChannel
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .instruction import Instruction
 
 
@@ -47,12 +48,10 @@ class SetFrequency(Instruction):
         """
         self._frequency = float(frequency)
         self._channel = channel
-        super().__init__(0, channel, name=name)
-
-    @property
-    def operands(self) -> Tuple[float, PulseChannel]:
-        """Return instruction operands."""
-        return (self.frequency, self.channel)
+        self._duration = 0
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, 0), channel))
+        self._command = None
+        super().__init__((frequency, channel), name=name)
 
     @property
     def frequency(self) -> float:

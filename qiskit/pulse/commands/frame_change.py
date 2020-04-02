@@ -19,6 +19,7 @@ from typing import Optional
 
 from qiskit.pulse.channels import PulseChannel
 from ..instructions import Instruction
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .command import Command
 
 
@@ -82,4 +83,9 @@ class FrameChangeInstruction(Instruction):
                       "FrameChangeInstruction(FrameChange(3.14), DriveChannel(0)) -> "
                       "ShiftPhase(3.14, DriveChannel(0)).",
                       DeprecationWarning)
-        super().__init__(command, channel, name=name)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        super().__init__((), name=name)

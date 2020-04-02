@@ -32,7 +32,7 @@ from typing import Tuple, List, Iterable, Callable, Optional, Union
 from ..channels import Channel
 from ..interfaces import ScheduleComponent
 from ..schedule import Schedule
-from ..timeslots import Interval, Timeslot, TimeslotCollection
+from ..timeslots import TimeslotCollection
 from .. import commands  # pylint: disable=unused-import
 
 # pylint: disable=missing-return-doc
@@ -43,29 +43,16 @@ class Instruction(ScheduleComponent, ABC):
     channels.
     """
 
-    def __init__(self, duration: Union['commands.Command', int],
-                 *channels: Channel,
+    def __init__(self, operands: Tuple,
                  name: Optional[str] = None):
         """Instruction initializer.
 
         Args:
-            duration: Length of time taken by the instruction in terms of dt.
-                      Deprecated: the first argument used to be the Command.
-            *channels: List of pulse channels that this instruction operates on.
+            operands: The arguments to the instruction.
             name: Optional display name for this instruction.
         """
-        self._command = None
-        if not isinstance(duration, int):
-            warnings.warn("Commands have been deprecated. Use `qiskit.pulse.instructions` instead.",
-                          DeprecationWarning)
-            self._command = duration
-            if name is None:
-                name = self.command.name
-            duration = self.command.duration
+        self._operands = operands
         self._name = name
-        self._duration = duration
-        self._timeslots = TimeslotCollection(*(Timeslot(Interval(0, duration), channel)
-                                               for channel in channels if channel is not None))
 
     @property
     def name(self) -> str:
@@ -87,10 +74,7 @@ class Instruction(ScheduleComponent, ABC):
     @property
     def operands(self) -> Tuple:
         """Return instruction operands."""
-        # This cannot be a true abstractmethod While old Command style classes are still
-        # implemented, because they do not have an operands method.
-        if self.command is None:
-            raise NotImplementedError
+        return self._operands
 
     @property
     def channels(self) -> Tuple[Channel]:

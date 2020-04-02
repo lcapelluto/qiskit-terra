@@ -21,6 +21,7 @@ from typing import Optional
 
 from qiskit.pulse.channels import PulseChannel
 from qiskit.pulse.exceptions import PulseError
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from ..instructions import Instruction
 from .command import Command
 
@@ -86,4 +87,14 @@ class PersistentValueInstruction(Instruction):
     """Instruction to keep persistent value."""
 
     def __init__(self, command: PersistentValue, channel: PulseChannel, name=None):
-        super().__init__(command, channel, name=name)
+        warnings.warn("PersistentValueInstruction is deprecated. Use Play, instead, with a "
+                      "ConstantPulse and a channel. For example: "
+                      "PersistentValueInstruction(PersistentValue(value), DriveChannel(0)) -> "
+                      "Play(ConstantPulse(duration, value), DriveChannel(0)).",
+              DeprecationWarning)
+        self._command = command
+        if name is None:
+            name = self.command.name
+        self._duration = self.command.duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, self.duration), channel))
+        super().__init__((), name=name)

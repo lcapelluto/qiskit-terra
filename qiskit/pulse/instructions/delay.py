@@ -19,6 +19,7 @@ from typing import Optional, Tuple
 
 from ..channels import Channel
 from ..exceptions import PulseError
+from ..timeslots import Interval, Timeslot, TimeslotCollection
 from .instruction import Instruction
 
 
@@ -55,12 +56,10 @@ class Delay(Instruction):
                           "example, Delay(5)(DriveChannel(0)) should be replaced by "
                           "Delay(5, DriveChannel(0)).", DeprecationWarning)
         self._channel = channel
-        super().__init__(duration, channel, name=name)
-
-    @property
-    def operands(self) -> Tuple[int, Channel]:
-        """Return instruction operands."""
-        return (self.duration, self.channel)
+        self._duration = duration
+        self._timeslots = TimeslotCollection(Timeslot(Interval(0, duration), channel))
+        self._command = None
+        super().__init__((duration, channel), name=name)
 
     @property
     def channel(self) -> Channel:
