@@ -91,10 +91,10 @@ class Instruction(ScheduleComponent, ABC):
     @property
     def operands(self) -> Tuple:
         """Return instruction operands."""
-        return self._operands
         if self.command is not None:
-            raise NotImplementedError("This is an outdated instruction with a ``Command``, "
-                                      "and does not have `operands`.")
+            raise NotImplementedError("This is a deprecated instruction with a ``Command``, "
+                                      "and it does not have `operands`.")
+        return self._operands
 
     @property
     def channels(self) -> Tuple[Channel]:

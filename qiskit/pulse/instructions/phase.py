@@ -16,7 +16,7 @@
 
 import warnings
 
-from typing import Optional, Tuple
+from typing import Optional
 
 from ..channels import PulseChannel
 from ..exceptions import PulseError

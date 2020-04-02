@@ -15,7 +15,7 @@
 """An instruction for blocking time on a channel; useful for scheduling alignment."""
 import warnings
 
-from typing import Optional, Tuple
+from typing import Optional
 
 from ..channels import Channel
 from ..exceptions import PulseError

@@ -15,7 +15,7 @@
 """An instruction to transmit a given pulse on a ``PulseChannel`` (i.e., those which support
 transmitted pulses, such as ``DriveChannel``).
 """
-from typing import Optional, Tuple, Any
+from typing import Optional
 
 from ..channels import PulseChannel
 from .instruction import Instruction

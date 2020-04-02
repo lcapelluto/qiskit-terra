@@ -17,7 +17,7 @@ instructions available are determined by the simulator being used.
 """
 import warnings
 
-from typing import Optional, Tuple
+from typing import Optional
 
 from ..channels import SnapshotChannel
 from .instruction import Instruction

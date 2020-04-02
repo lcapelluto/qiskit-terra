@@ -17,7 +17,7 @@ some metadata for the acquisition process; for example, where to store classifie
 """
 import warnings
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 from ..channels import MemorySlot, RegisterSlot, AcquireChannel
 from ..configuration import Kernel, Discriminator
@@ -122,14 +122,8 @@ class Acquire(Instruction):
         flattened_channels = []
         for channels in all_channels:
             flattened_channels.extend(channels)
-        super().__init__((duration, self.channel, mem_slot, reg_slot),
+        super().__init__((duration, self.channel, self.mem_slot, self.reg_slot),
                          duration, flattened_channels, name=name)
-
-    @property
-    def operands(self) -> Tuple[int, AcquireChannel, MemorySlot, RegisterSlot]:
-        """Return instruction operands."""
-        return (self.duration, self.channel,
-                self.mem_slot, self.reg_slot)
 
     @property
     def channel(self) -> AcquireChannel:

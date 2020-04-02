@@ -15,7 +15,7 @@
 """Frequency instructions module. These instructions allow the user to manipulate
 the frequency of a channel.
 """
-from typing import Optional, Tuple
+from typing import Optional
 
 from ..channels import PulseChannel
 from .instruction import Instruction
