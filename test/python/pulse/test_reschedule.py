@@ -186,9 +186,10 @@ class TestPad(QiskitTestCase):
     def test_padding_schedule(self):
         """Test padding schedule."""
         delay = 10
-        sched = (Delay(delay, DriveChannel(0)).shift(10) +
-                 Delay(delay, DriveChannel(0)).shift(10) +
-                 Delay(delay, DriveChannel(1)).shift(10))
+        sched = (Delay(delay, DriveChannel(0)).shift(10))
+        sched += (Delay(delay, DriveChannel(0)).shift(10))
+        sched += (Delay(delay, DriveChannel(1)).shift(10))
+        import ipdb; ipdb.set_trace()
 
         ref_sched = (sched |
                      Delay(delay, DriveChannel(0)) |

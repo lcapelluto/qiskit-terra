@@ -17,7 +17,7 @@
 from qiskit.test import QiskitTestCase
 
 from qiskit.pulse.exceptions import PulseError
-from qiskit.pulse.timing import _overlaps, _insertion_index
+from qiskit.pulse.timing import _overlaps, _insertion_index, Timeslots
 
 
 class TestTimingUtils(QiskitTestCase):
@@ -74,3 +74,13 @@ class TestTimingUtils(QiskitTestCase):
     def test_insertion_index_empty_list(self):
         """Test that the insertion index is properly found for empty lists."""
         self.assertEqual(_insertion_index([], (0, 1)), 0)
+
+    def test_timeslots(self):
+        """
+        """
+        t0 = Timeslots()
+        t0._timeslots = {'d0': [(10, 13)]}
+        t1 = Timeslots()
+        t1._timeslots = {'d0': [(0, 3)]}
+        t0.add_timeslots(5, t1)
+        self.assertEqual(t0._timeslots, {'d0': [(5, 8), (10, 13)]})

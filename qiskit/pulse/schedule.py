@@ -29,7 +29,7 @@ from qiskit.util import is_main_process
 from .channels import Channel
 from .interfaces import ScheduleComponent
 from .exceptions import PulseError
-from .timing import Interval, _insertion_index
+from .timing import Interval, Timeslots
 
 # pylint: disable=missing-return-doc
 
@@ -64,7 +64,7 @@ class Schedule(ScheduleComponent):
         self._name = name
         self._duration = 0
 
-        self._timeslots = {}
+        self._timeslots = Timeslots()
         _children = []
         for sched_pair in schedules:
             if isinstance(sched_pair, list):
@@ -74,6 +74,8 @@ class Schedule(ScheduleComponent):
                 sched_pair = (0, sched_pair)
             insert_time, sched = sched_pair
             # This will also update duration
+
+            # TODO: what if `schedule` is an Instruction?
             self._add_timeslots(insert_time, sched)
             _children.append(sched_pair)
         self.__children = tuple(_children)
@@ -402,36 +404,7 @@ class Schedule(ScheduleComponent):
             PulseError: If timeslots overlap.
         """
         self._duration = max(self._duration, time + schedule.duration)
-
-        for channel in schedule.channels:
-
-            if channel not in self._timeslots:
-                if time == 0:
-                    self._timeslots[channel] = copy(schedule._timeslots[channel])
-                else:
-                    self._timeslots[channel] = [(i[0] + time, i[1] + time)
-                                                for i in schedule._timeslots[channel]]
-                continue
-
-            for idx, interval in enumerate(schedule._timeslots[channel]):
-                if interval[0] + time >= self._timeslots[channel][-1][1]:
-                    # Can append the remaining intervals
-                    self._timeslots[channel].extend(
-                        [(i[0] + time, i[1] + time)
-                         for i in schedule._timeslots[channel][idx:]])
-                    break
-
-                try:
-                    interval = (interval[0] + time, interval[1] + time)
-                    index = _insertion_index(self._timeslots[channel], interval)
-                    self._timeslots[channel].insert(index, interval)
-                except PulseError:
-                    raise PulseError(
-                        "Schedule(name='{new}') cannot be inserted into Schedule(name='{old}') at "
-                        "time {time} because its instruction on channel {ch} scheduled from time "
-                        "{t0} to {tf} overlaps with an existing instruction."
-                        "".format(new=schedule.name or '', old=self.name or '', time=time,
-                                  ch=channel, t0=interval[0], tf=interval[1]))
+        self._timeslots.add_timeslots(time, schedule._timeslots)
 
     def draw(self, dt: float = 1, style=None,
              filename: Optional[str] = None, interp_method: Optional[Callable] = None,

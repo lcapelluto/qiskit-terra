@@ -14,12 +14,67 @@
 
 """Private utility methods used by Schedules."""
 
+from copy import copy
 from typing import List, Tuple
 
 from .exceptions import PulseError
 
-
 Interval = Tuple[int, int]
+
+
+class Timeslots:
+    """"""
+
+    def __init__(self):
+        """"""
+        self._timeslots = {}
+
+    def add_timeslots(self, time: int, new_timeslots: 'Timeslots') -> None:
+        """Update all time tracking within this schedule based on the given schedule.
+
+        Args:
+            time: The time to insert the schedule into self.
+            schedule: The schedule to insert into self.
+
+        Raises:
+            PulseError: If timeslots overlap.
+        """
+        for key in new_timeslots.keys():
+
+            if key not in self._timeslots:
+                if time == 0:
+                    self._timeslots[key] = copy(new_timeslots[key])
+                else:
+                    self._timeslots[key] = [(i[0] + time, i[1] + time)
+                                                for i in new_timeslots[key]]
+                continue
+
+            for idx, interval in enumerate(new_timeslots[key]):
+                if interval[0] + time >= self._timeslots[key][-1][1]:
+                    # Can append the remaining intervals
+                    self._timeslots[key].extend(
+                        [(i[0] + time, i[1] + time)
+                         for i in new_timeslots[key][idx:]])
+                    break
+
+                try:
+                    interval = (interval[0] + time, interval[1] + time)
+                    index = _insertion_index(self._timeslots[key], interval)
+                    self._timeslots[key].insert(index, interval)
+                except PulseError:
+                    raise PulseError(
+                        "Cannot merge schedules at time {time} because its instruction on channel {key} "
+                        "scheduled from time {t0} to {tf} overlaps with an existing instruction."
+                        "".format(time=time, key=key, t0=interval[0], tf=interval[1]))
+
+    def keys(self):
+        return self._timeslots.keys()
+
+    def __getitem__(self, key):
+        return self._timeslots[key]
+
+    def __contains__(self, key):
+        return key in self._timeslots
 
 
 def _insertion_index(intervals: List[Interval], new_interval: Interval, index: int = 0) -> int:

@@ -186,7 +186,6 @@ class TestScheduleBuilding(BaseTestSchedule):
         self.assertEqual(0, sched.stop_time)
         self.assertEqual(0, sched.duration)
         self.assertEqual((), sched._children)
-        self.assertEqual({}, sched.timeslots)
         self.assertEqual([], list(sched.instructions))
 
     def test_overlapping_schedules(self):
