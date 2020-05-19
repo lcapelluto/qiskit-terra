@@ -20,12 +20,13 @@ from qiskit.exceptions import QiskitError
 from qiskit.pulse.schedule import Schedule
 
 from qiskit.scheduler.config import ScheduleConfig
-from qiskit.scheduler.methods.basic import as_soon_as_possible, as_late_as_possible
+from qiskit.scheduler.methods.basic import as_soon_as_possible, as_late_as_possible, sequence
 
 
 def schedule_circuit(circuit: QuantumCircuit,
                      schedule_config: ScheduleConfig,
-                     method: Optional[str] = None) -> Schedule:
+                     method: Optional[str] = None,
+                     backend_config = None) -> Schedule:
     """
     Basic scheduling pass from a circuit to a pulse Schedule, using the backend. If no method is
     specified, then a basic, as late as possible scheduling pass is performed, i.e. pulses are
@@ -53,11 +54,12 @@ def schedule_circuit(circuit: QuantumCircuit,
         'as_soon_as_possible': as_soon_as_possible,
         'asap': as_soon_as_possible,
         'as_late_as_possible': as_late_as_possible,
-        'alap': as_late_as_possible
+        'alap': as_late_as_possible,
+        'sequence': sequence
     }
     if method is None:
         method = 'as_late_as_possible'
     try:
-        return methods[method](circuit, schedule_config)
+        return methods[method](circuit, schedule_config, backend_config)
     except KeyError:
         raise QiskitError("Scheduling method {method} isn't recognized.".format(method=method))

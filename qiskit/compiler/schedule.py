@@ -69,10 +69,11 @@ def schedule(circuits: Union[QuantumCircuit, List[QuantumCircuit]],
         if backend is None:
             raise QiskitError("Must supply either a backend or a meas_map for scheduling passes.")
         meas_map = backend.configuration().meas_map
+    backend_config = backend.configuration()
 
     schedule_config = ScheduleConfig(inst_map=inst_map, meas_map=meas_map)
     circuits = circuits if isinstance(circuits, list) else [circuits]
-    schedules = [schedule_circuit(circuit, schedule_config, method) for circuit in circuits]
+    schedules = [schedule_circuit(circuit, schedule_config, method, backend_config) for circuit in circuits]
     end_time = time()
     _log_schedule_time(start_time, end_time)
     return schedules[0] if len(schedules) == 1 else schedules

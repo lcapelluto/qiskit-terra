@@ -19,11 +19,13 @@ The most straightforward scheduling methods: scheduling **as early** or **as lat
 from collections import defaultdict, namedtuple
 from typing import List
 
+from qiskit.circuit.barrier import Barrier
+from qiskit.circuit.delay import Delay
 from qiskit.circuit.measure import Measure
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.exceptions import QiskitError
-from qiskit.circuit.barrier import Barrier
-from qiskit.circuit.delay import Delay
+from qiskit.providers.models import BackendConfiguration
+from qiskit import pulse
 from qiskit.pulse.exceptions import PulseError
 from qiskit.pulse.schedule import Schedule
 from qiskit.pulse.channels import AcquireChannel, DriveChannel, MeasureChannel
@@ -40,7 +42,8 @@ CircuitPulseDef = namedtuple('CircuitPulseDef', [
 
 
 def as_soon_as_possible(circuit: QuantumCircuit,
-                        schedule_config: ScheduleConfig) -> Schedule:
+                        schedule_config: ScheduleConfig,
+                        backend_config: BackendConfiguration) -> Schedule:
     """
     Return the pulse Schedule which implements the input circuit using an "as soon as possible"
     (asap) scheduling policy.
@@ -66,7 +69,7 @@ def as_soon_as_possible(circuit: QuantumCircuit,
             qubit_time_available[q] = time
 
     start_times = []
-    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
+    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config, backend_config)
     for circ_pulse_def in circ_pulse_defs:
         start_time = max(qubit_time_available[q] for q in circ_pulse_def.qubits)
         stop_time = start_time
@@ -82,7 +85,8 @@ def as_soon_as_possible(circuit: QuantumCircuit,
 
 
 def as_late_as_possible(circuit: QuantumCircuit,
-                        schedule_config: ScheduleConfig) -> Schedule:
+                        schedule_config: ScheduleConfig,
+                        backend_config: BackendConfiguration) -> Schedule:
     """
     Return the pulse Schedule which implements the input circuit using an "as late as possible"
     (alap) scheduling policy.
@@ -111,7 +115,7 @@ def as_late_as_possible(circuit: QuantumCircuit,
             qubit_time_available[q] = time
 
     rev_stop_times = []
-    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config)
+    circ_pulse_defs = translate_gates_to_pulse_defs(circuit, schedule_config, backend_config)
     for circ_pulse_def in reversed(circ_pulse_defs):
         start_time = max(qubit_time_available[q] for q in circ_pulse_def.qubits)
         stop_time = start_time
@@ -128,8 +132,47 @@ def as_late_as_possible(circuit: QuantumCircuit,
     return Schedule(*timed_schedules, name=circuit.name)
 
 
+def sequence(scheduled_circuit: QuantumCircuit,
+             schedule_config: ScheduleConfig,
+             backend_config: BackendConfiguration) -> Schedule:
+    """
+    Return the pulse Schedule which implements the input circuit using an "as soon as possible"
+    (asap) scheduling policy.
+
+    Circuit instructions are first each mapped to equivalent pulse
+    Schedules according to the command definition given by the schedule_config.
+
+    Args:
+        scheduled_circuit: The scheduled quantum circuit to translate.
+        schedule_config: Backend specific parameters used for building the Schedule.
+
+    Returns:
+        A schedule corresponding to the input ``circuit``.
+    """
+    qubit_time_available = defaultdict(int)
+    start_times = []
+    for inst, qubits, _ in scheduled_circuit.data:
+        start_time = qubit_time_available[qubits[0]]
+        for q in qubits:
+            if qubit_time_available[q] != start_time:
+                raise Exception("Bug in scheduling pass.")
+
+        start_times.append(start_time)
+        for q in qubits:
+            qubit_time_available[q] += inst.duration
+
+    circ_pulse_defs = translate_gates_to_pulse_defs(scheduled_circuit,
+                                                    schedule_config,
+                                                    backend_config)
+    timed_schedules = [(time, cpd.schedule) for time, cpd in zip(start_times, circ_pulse_defs)
+                       if not isinstance(cpd.schedule, Barrier)]
+    sched = Schedule(*timed_schedules, name=scheduled_circuit.name)
+    return pad(sched)
+
+
 def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
-                                  schedule_config: ScheduleConfig) -> List[CircuitPulseDef]:
+                                  schedule_config: ScheduleConfig,
+                                  backend_config: BackendConfiguration) -> List[CircuitPulseDef]:
     """
     Return a list of Schedules and the qubits they operate on, for each element encountered in th
     input circuit.
@@ -173,18 +216,30 @@ def translate_gates_to_pulse_defs(circuit: QuantumCircuit,
             circ_pulse_defs.append(get_measure_schedule())
         if isinstance(inst, Barrier):
             circ_pulse_defs.append(CircuitPulseDef(schedule=inst, qubits=inst_qubits))
-        elif isinstance(inst, Delay):
-            sched = Schedule(name=inst.name)
-            for q in inst_qubits:
-                sched += pulse_inst.Delay(duration=inst.duration, channel=DriveChannel(q))  # OK?
-                sched += pulse_inst.Delay(duration=inst.duration, channel=MeasureChannel(q))  # OK?
-            circ_pulse_defs.append(CircuitPulseDef(schedule=sched, qubits=inst_qubits))
         elif isinstance(inst, Measure):
             if (len(inst_qubits) != 1 and len(clbits) != 1):
                 raise QiskitError("Qubit '{0}' or classical bit '{1}' errored because the "
                                   "circuit Measure instruction only takes one of "
                                   "each.".format(inst_qubits, clbits))
             qubit_mem_slots[inst_qubits[0]] = clbits[0].index
+        elif isinstance(inst, Delay):
+            schedule = pulse.Schedule(name=inst.name)
+            for qubit in inst_qubits:
+                # TODO: backend_config.get_qubit_channels(qubit)
+                # TODO: fixing this would expose another existing bug, that delay(qubit=A) and delay(qubit=B)
+                #       will seem to overlap when A and B are coupled, because A and B both add a Delay to
+                #       the same ControlChannel.
+                #       We can neglect the control channels and get the correct behavior until there is a
+                #       gate which is implemented with instructions on ControlChannels and no other channels
+                #       (this is not the case for our 2Q gates at the moment).
+                channels = [pulse.DriveChannel(qubit), pulse.AcquireChannel(qubit), pulse.MeasureChannel(qubit)]
+                for channel in channels:
+                    if isinstance(inst.duration, int):
+                        duration = inst.duration
+                    else:
+                        duration = int(inst.duration // backend_config.dt)
+                    schedule += pulse.Delay(duration, channel)
+            circ_pulse_defs.append(CircuitPulseDef(schedule=schedule, qubits=inst_qubits))
         else:
             try:
                 circ_pulse_defs.append(
