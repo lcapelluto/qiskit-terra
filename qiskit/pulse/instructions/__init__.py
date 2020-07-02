@@ -22,11 +22,11 @@ sequences for the control electronics.
 On this page, we will cover in depth these ``Instruction``\ s available
 through Qiskit Pulse:
 
--  ```Delay(duration: int, channel)`` <#delay>`__
--  ```Play(pulse, channel)`` <#play>`__
--  ```SetFrequency(frequency, channel)`` <#frequency>`__
--  ```ShiftPhase(phase, channel)`` <#phase>`__
--  ```Acquire(duration, channel, mem_slot, reg_slot)`` <#acquire>`__
+-  `Delay(duration: int, channel) <#delay>`__
+-  `Play(pulse, channel) <#play>`__
+-  `SetFrequency(frequency, channel) <#frequency>`__
+-  `ShiftPhase(phase, channel) <#phase>`__
+-  `Acquire(duration, channel, mem_slot, reg_slot) <#acquire>`__
 
 Each instruction type has its own set of operands. As you can see above,
 they each include at least one ``Channel`` to specify where the
@@ -35,13 +35,13 @@ instruction will be applied.
 **Channels** are labels for signal lines from the control hardware to
 the quantum chip.
 
--  ``DriveChannel``\ s are typically used for *driving* single qubit
+-  :py:class:`~qiskit.pulse.channels.DriveChannel`\ s are typically used for *driving* single qubit
    rotations,
--  ``ControlChannel``\ s are typically used for multi-qubit gates or
+-  :py:class:`~qiskit.pulse.channels.ControlChannel`\ s are typically used for multi-qubit gates or
    additional drive lines for tunable qubits,
--  ``MeasureChannel``\ s are specific to transmitting pulses which
+-  :py:class:`~qiskit.pulse.channels.MeasureChannel`\ s are specific to transmitting pulses which
    stimulate readout, and
--  ``AcquireChannel``\ s are used to trigger digitizers which collect
+-  :py:class:`~qiskit.pulse.channels.AquireChannel`\ s are used to trigger digitizers which collect
    readout signals.
 
 :py:class:`~qiskit.pulse.channels.DriveChannel`\ s,
@@ -56,7 +56,8 @@ For the following examples, we will create one
 :py:class:`~qiskit.pulse.channels.DriveChannel` instance
 for each :py:class:`~qiskit.pulse.instruction.Instruction` that accepts a
 :py:class:`~qiskit.pulse.channels.PulseChannel`. Channels take
-one integer ``index`` argument. Except for ``ControlChannel``\ s, the
+one integer ``index`` argument. Except for
+:py:class:`~qiskit.pulse.channels.ControlChannel`\ s, the
 index maps trivially to the qubit label.
 
 .. code:: ipython3
@@ -65,7 +66,8 @@ index maps trivially to the qubit label.
 
     channel = DriveChannel(0)
 
-## ``Delay``
+:py:class:`~qiskit.pulse.instructions.Delay`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 One of the simplest instructions we can build is ``Delay``. This is a
 blocking instruction that tells the control electronics to output no
@@ -91,7 +93,8 @@ be included in a ``Schedule``. Any instruction appended after
 ``delay_5dt`` on the same channel will execute five timesteps later than
 it would have without this delay.
 
-## ``Play``
+:py:class:`~qiskit.pulse.instructions.Play`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``Play`` instruction is responsible for executing *pulses*. It’s
 straightforward to build one:
@@ -104,7 +107,7 @@ Let’s clarify what the ``pulse`` argument is and explore a few different
 ways to build one.
 
 Pulses
-~~~~~~
+^^^^^^
 
 A ``Pulse`` specifies an arbitrary pulse *envelope*. The modulation
 frequency and phase of the output waveform are controlled by the
@@ -151,8 +154,7 @@ provided through the ``BackendConfiguration`` which is described
     sigma = 10
     num_samples = 128
 
-Parametric pulses
-^^^^^^^^^^^^^^^^^
+**Parametric pulses**
 
 Let’s build our Gaussian pulse using the ``Gaussian`` parametric pulse.
 A parametric pulse sends the name of the function and its parameters to
@@ -220,8 +222,8 @@ from common waveforms.
 
 
 
-External libraries
-^^^^^^^^^^^^^^^^^^
+**External libraries**
+
 
 Alternatively, you can make use of an external library.
 
@@ -254,7 +256,8 @@ The ``Play`` instruction gets its duration from its ``Pulse``: the
 duration of a parametrized pulse is an explicit argument, and the
 duration of a ``SamplePulse`` is the number of input samples.
 
-## ``SetFrequency``
+:py:class:`~qiskit.pulse.instructions.SetFrequency`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As explained previously, the output pulse waveform envelope is also
 modulated by a frequency and phase. Each channel has a `default
@@ -280,7 +283,8 @@ the future, these will be reported by the ``backend``.
 
     set_freq = SetFrequency(4.5e9, channel)
 
-## ``ShiftPhase``
+:py:class:`~qiskit.pulse.instructions.ShiftPhase`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``ShiftPhase`` instruction will increase the phase of the frequency
 modulation by ``phase``. Like ``SetFrequency``, this phase shift will
@@ -297,8 +301,8 @@ Like ``SetFrequency``, the instruction has an implicit duration of
 
     phase_pi = ShiftPhase(np.pi, channel)
 
-``Acquire``
------------
+:py:class:`~qiskit.pulse.instructions.Acquire`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``Acquire`` instruction triggers data acquisition for readout. It
 takes a duration, an ``AcquireChannel`` which maps to the qubit being
@@ -322,8 +326,8 @@ them into ``Schedule``\ s on the `next
 page <building_pulse_schedules.ipynb>`__!
 
 
-`Instructions` API Docs
-=======================
+``Instructions`` API Docs
+=========================
 
 The ``instruction`` module holds the various ``Instruction`` s which are supported by
 Qiskit Pulse. Instructions have operands, which typically include at least one
