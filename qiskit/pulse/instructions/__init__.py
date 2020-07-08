@@ -136,8 +136,10 @@ the value of the modulation frequency.
    Pulse modulation image
 
 There are many methods available to us for building up pulses. Our
-``pulse_lib`` within Qiskit Pulse contains helpful methods for building
-``Pulse``\ s. Let’s take for example a simple Gaussian pulse – a pulse
+:py:mod:`~qiskit.pulse.library` within Qiskit Pulse contains helpful methods
+for building
+:py:class:`~qiskit.pulse.library.pulse.Pulse`\ s. Let’s take for example
+a simple Gaussian pulse – a pulse
 with its envelope described by a sampled Gaussian function. We
 arbitrarily choose an amplitude of 1, standard deviation :math:`\sigma`
 of 10, and 128 sample points.
@@ -146,11 +148,11 @@ of 10, and 128 sample points.
 have additional constraints on the minimum and maximum number of samples
 allowed in a pulse. These additional constraints, if available, would be
 provided through the ``BackendConfiguration`` which is described
-`here <gathering_system_information.ipynb#Configuration>`__.
+here :py:mod:`qiskit.providers.models`.
 
 .. code:: ipython3
 
-    from qiskit.pulse import pulse_lib
+    from qiskit.pulse import library
 
     amp = 1
     sigma = 10
@@ -165,8 +167,9 @@ pulses makes the jobs you send to the backend much smaller. IBM Quantum
 backends limit the maximum job size that they accept, so parametric
 pulses may allow you to run larger programs.
 
-Other parametric pulses in the ``pulse_lib`` include ``GaussianSquare``,
-``Drag``, and ``ConstantPulse``.
+Other parametric pulses in the :py:mod:`~qiskit.pulse.library` include
+:py:class:`~qiskit.pulse.library.GaussianSquare`,
+:py:class:`~qiskit.pulse.library.Drag`, and :py:class:`~qiskit.pulse.library.Constant`.
 
 **Note**: The backend is responsible for deciding exactly how to sample
 the parametric pulses. It is possible to draw parametric pulses, but the
@@ -175,9 +178,8 @@ the backend.
 
 .. code:: ipython3
 
-    pulse = pulse_lib.Gaussian(num_samples, amp, sigma)
+    pulse = library.Gaussian(num_samples, amp, sigma)
     pulse.draw()
-
 
 
 
@@ -188,7 +190,7 @@ the backend.
 **Sample pulses**
 
 It is also possible to specify the waveform as an array of samples. We
-pass the samples to a ``SamplePulse``.
+pass the samples to a :py:class:`~qiskit.pulse.library.SamplePulse`.
 
 .. code:: ipython3
 
@@ -197,7 +199,7 @@ pass the samples to a ``SamplePulse``.
     times = np.arange(num_samples)
     gaussian_samples = np.exp(-1/2 *((times - num_samples / 2) ** 2 / sigma**2))
 
-    pulse = pulse_lib.SamplePulse(gaussian_samples)
+    pulse = library.SamplePulse(gaussian_samples)
     pulse.draw()
 
 
@@ -209,12 +211,12 @@ pass the samples to a ``SamplePulse``.
 
 **Pulse library functions**
 
-Our own pulse library has sampling methods to build ``SamplePulse``\ s
-from common waveforms.
+Our own pulse library has sampling methods to build
+:py:class:`~qiskit.pulse.library.SamplePulse`\ s from common waveforms.
 
 .. code:: ipython3
 
-    pulse = pulse_lib.gaussian(duration=num_samples, amp=amp, sigma=sigma)
+    pulse = library.gaussian(duration=num_samples, amp=amp, sigma=sigma)
     pulse.draw()
 
 
@@ -234,7 +236,7 @@ Alternatively, you can make use of an external library.
     from scipy import signal
 
     sampled_gaussian_envelope = signal.gaussian(num_samples, sigma)
-    pulse = pulse_lib.SamplePulse(sampled_gaussian_envelope)
+    pulse = library.SamplePulse(sampled_gaussian_envelope)
     pulse.draw()
 
 
@@ -244,8 +246,8 @@ Alternatively, you can make use of an external library.
 
 
 
-Regardless of which method you use to specify your ``pulse``, ``Play``
-is instantiated the same way:
+Regardless of which method you use to specify your ``pulse``,
+:py:class:`~qiskit.pulse.instructions.Play` is instantiated the same way:
 
 .. code:: ipython3
 
@@ -254,23 +256,24 @@ is instantiated the same way:
 
     play_gaus = Play(pulse, channel)
 
-The ``Play`` instruction gets its duration from its ``Pulse``: the
+The :py:class:`~qiskit.pulse.instructions.Play` instruction gets its duration
+from its :py:class:`~qiskit.pulse.library.pulse.Pulse`: the
 duration of a parametrized pulse is an explicit argument, and the
-duration of a ``SamplePulse`` is the number of input samples.
+duration of a :py:class:`~qiskit.pulse.library.SamplePulse` is the number of input samples.
 
 :py:class:`~qiskit.pulse.instructions.SetFrequency`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As explained previously, the output pulse waveform envelope is also
-modulated by a frequency and phase. Each channel has a `default
-frequency listed in the
-``backend.defaults()`` <gathering_system_information.ipynb#Defaults>`__.
+modulated by a frequency and phase. Each channel has a default
+frequency listed in the :py:class:`~qiskit.providers.models.PulseDefaults`.
 
 The frequency of a channel can be updated at any time within a
-``Schedule`` by the ``SetFrequency`` instruction. It takes a float
-``frequency`` and a ``PulseChannel`` ``channel`` as input. All pulses on
-a channel following a ``SetFrequency`` instruction will be modulated by
-the given frequency until another ``SetFrequency`` instruction is
+:py:class:`~qiskit.pulse.Schedule` by the :py:class:`~qiskit.pulse.SetFrequency`
+instruction. It takes a float
+``frequency`` and a :py:class:`~qiskit.pulse.PulseChannel` ``channel`` as input. All pulses on
+a channel following a :py:class:`~qiskit.pulse.SetFrequency` instruction will be modulated by
+the given frequency until another :py:class:`~qiskit.pulse.SetFrequency` instruction is
 encountered or until the program ends.
 
 The instruction has an implicit duration of ``0``.
@@ -288,13 +291,13 @@ the future, these will be reported by the ``backend``.
 :py:class:`~qiskit.pulse.instructions.ShiftPhase`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``ShiftPhase`` instruction will increase the phase of the frequency
-modulation by ``phase``. Like ``SetFrequency``, this phase shift will
+The :py:class:`~qiskit.pulse.ShiftPhase` instruction will increase the phase of the frequency
+modulation by ``phase``. Like :py:class:`~qiskit.pulse.SetFrequency`, this phase shift will
 affect all following instructions on the same channel until the program
-ends. To undo the affect of a ``ShiftPhase``, the negative ``phase`` can
+ends. To undo the affect of a :py:class:`~qiskit.pulse.ShiftPhase`, the negative ``phase`` can
 be passed to a new instruction.
 
-Like ``SetFrequency``, the instruction has an implicit duration of
+Like :py:class:`~qiskit.pulse.SetFrequency`, the instruction has an implicit duration of
 ``0``.
 
 .. code:: ipython3
@@ -306,14 +309,17 @@ Like ``SetFrequency``, the instruction has an implicit duration of
 :py:class:`~qiskit.pulse.instructions.Acquire`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``Acquire`` instruction triggers data acquisition for readout. It
-takes a duration, an ``AcquireChannel`` which maps to the qubit being
+The :py:class:`~qiskit.pulse.instructions.Acquire` instruction triggers data
+acquisition for readout. It
+takes a duration, an `:py:class:`~qiskit.pulse.channels.AcquireChannel` which
+maps to the qubit being
 measured, and a ``MemorySlot`` or a ``RegisterSlot``. The ``MemorySlot``
 is classical memory where the readout result will be stored. The
 ``RegisterSlot`` maps to a register in the control electronics which
 stores the readout result for fast feedback.
 
-``Acquire`` instructions can also take custom ``Discriminator``\ s and
+:py:class:`~qiskit.pulse.instructions.Acquire` instructions can also take
+custom ``Discriminator``\ s and
 ``Kernel``\ s as keyword arguments. Read more about building
 measurements `here <adding_measurements.ipynb>`__.
 
@@ -324,8 +330,7 @@ measurements `here <adding_measurements.ipynb>`__.
     acquire = Acquire(1200, AcquireChannel(0), MemorySlot(0))
 
 Now that we know how to build instructions, let’s learn how to compose
-them into ``Schedule``\ s on the `next
-page <building_pulse_schedules.ipynb>`__!
+them into :py:class:`~qiskit.pulse.Schedule`\ s!
 
 
 ``Instructions`` API Docs
