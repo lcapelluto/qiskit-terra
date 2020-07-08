@@ -19,7 +19,7 @@ Building Pulse Instructions
 Pulse programs, which are called :py:class:`~qiskit.pulse.Schedule` s, describe instruction
 sequences for the control electronics.
 
-On this page, we will cover in depth these ``Instruction``\ s available
+On this page, we will cover in depth these :py:class:`~qiskit.pulse.instructions.Instruction`\ s available
 through Qiskit Pulse:
 
 -  `Delay(duration: int, channel) <#delay>`__
@@ -77,7 +77,8 @@ controlling the timing of other instructions.
 The duration here and elsewhere is in terms of the backend’s cycle time
 (1 / sample rate), ``dt``.
 
-To build a ``Delay`` instruction, we pass the duration and channel:
+To build a :py:class:`~qiskit.pulse.instructions.Delay` instruction, we pass
+the duration and channel:
 
 .. code:: ipython3
 
@@ -86,18 +87,18 @@ To build a ``Delay`` instruction, we pass the duration and channel:
     delay_5dt = Delay(5, channel)
 
 where ``channel`` can be any kind of channel, including
-``AcquireChannel``.
+:py:class:`~qiskit.pulse.channels.AquireChannel`.
 
 That’s all there is to it. This instruction, ``delay_5dt``, is ready to
-be included in a ``Schedule``. Any instruction appended after
+be included in a :py:class:`~qiskit.pulse.Schedule`. Any instruction appended after
 ``delay_5dt`` on the same channel will execute five timesteps later than
 it would have without this delay.
 
 :py:class:`~qiskit.pulse.instructions.Play`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``Play`` instruction is responsible for executing *pulses*. It’s
-straightforward to build one:
+The :py:class:`~qiskit.pulse.instructions.Play` instruction is responsible
+for executing *pulses*. It’s straightforward to build one:
 
 ::
 
@@ -109,9 +110,11 @@ ways to build one.
 Pulses
 ^^^^^^
 
-A ``Pulse`` specifies an arbitrary pulse *envelope*. The modulation
+A :py:class:`~qiskit.pulse.library.pulse.Pulse` specifies an arbitrary pulse
+*envelope*. The modulation
 frequency and phase of the output waveform are controlled by the
-``SetFrequency`` and ``ShiftPhase`` instructions, which we will cover
+:py:class:`~qiskit.pulse.instructions.SetFrequency` and
+:py:class:`~qiskit.pulse.instructions.ShiftPhase` instructions, which we will cover
 next.
 
 The image below may provide some intuition for why they are specified
@@ -129,9 +132,8 @@ the instructions separate, we avoid losing explicit information, such as
 the value of the modulation frequency.
 
 .. figure:: ../../docs/source_images/pulse_imgs/pulse_modulation.png
-   :alt: Pulse modulation image
 
-   alt text
+   Pulse modulation image
 
 There are many methods available to us for building up pulses. Our
 ``pulse_lib`` within Qiskit Pulse contains helpful methods for building
