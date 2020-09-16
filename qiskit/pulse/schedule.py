@@ -22,7 +22,8 @@ import multiprocessing as mp
 import sys
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
-from qiskit.circuit.parameterexpression import ParameterExpression
+from qiskit.circuit import ParameterExpression
+from qiskit.circuit.parametertable import ParameterTable
 from qiskit.pulse.channels import Channel
 from qiskit.pulse.exceptions import PulseError
 from qiskit.pulse.interfaces import ScheduleComponent
@@ -63,6 +64,7 @@ class Schedule(ScheduleComponent):
 
         self._timeslots = {}
         self.__children = []
+        self._parameters = ParameterTable()
 
         for sched_pair in schedules:
             try:
@@ -263,6 +265,7 @@ class Schedule(ScheduleComponent):
             start_time: Time to insert the second schedule.
             schedule: Schedule to mutably insert.
         """
+        self._parameters.extend(schedule.parameters)
         self._add_timeslots(start_time, schedule)
         self.__children.append((start_time, schedule))
         return self
@@ -616,6 +619,10 @@ class Schedule(ScheduleComponent):
 
         if inplace:
             self.__children = new_children
+            new_parameters = ParameterTable()
+            for _, child in new_children:
+                new_parameters.extend(child.parameters)
+            self._parameters = new_parameters
             return self
         else:
             try:
@@ -626,33 +633,34 @@ class Schedule(ScheduleComponent):
                     'overlapping instructions.'.format(
                         old=old, new=new)) from err
 
+    @property
+    def parameters(self) -> Set[ParameterExpression]:
+        """Return the unbound parameters associated with the schedule's instructions."""
+        return set(self._parameters.get_keys())
+
     def assign_parameters(self,
                           value_dict: Dict[ParameterExpression,
                                            Union[ParameterExpression, int, float, complex]],
-                          inplace: bool = True) -> 'Schedule':
+                          ) -> 'Schedule':
         """Assign the parameters in this schedule according to the input.
 
         Args:
             value_dict: A mapping from Parameters to either numeric values or another
                 Parameter expression.
-            inplace: Modify this ``Schedule`` iff True, else return a new ``Schedule``.
 
         Returns:
             Schedule with updated parameters (a new one if not inplace, otherwise self).
         """
-        # TODO: efficient assignment
-        # TODO: raise error if parameter in input does not appear in schedule
-        if inplace:
-            for _, inst in self.instructions:
-                inst.assign_parameters(value_dict)
-            return self
+        for key, value in value_dict.items():
+            if not key in self._parameters:
+                raise PulseError("Parameter {} not in schedule.".format(value_dict.keys()))
+            if isinstance(value, ParameterExpression):
+                self._parameters.update(value.parameters)
 
-        new_insts = []
-        for time, inst in self.instructions:
-            inst = copy.deepcopy(inst)
+        # TODO: efficient assignment
+        for _, inst in self.instructions:
             inst.assign_parameters(value_dict)
-            new_insts.append((time, inst))
-        return Schedule(*new_insts, name=self.name)
+        return self
 
     def draw(self, dt: float = 1, style=None,
              filename: Optional[str] = None, interp_method: Optional[Callable] = None,
@@ -807,7 +815,7 @@ class ParameterizedSchedule:
     @property
     def parameters(self) -> Tuple[str]:
         """Schedule parameters."""
-        return self._parameters
+        return self._parameters.keys()
 
     def bind_parameters(self,
                         *args: Union[int, float, complex, ParameterExpression],

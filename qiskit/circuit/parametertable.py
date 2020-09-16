@@ -66,6 +66,19 @@ class ParameterTable(MutableMapping):
         """
         return self._names
 
+    def extend(self, parameter_table):
+        """Update the lists of instructions associated with each parameter *without*
+        overwriting previous instructions.
+
+        Args:
+            parameter_table:
+        """
+        for param, insts in parameter_table.items():
+            if param in self.get_keys():
+                self[param].extend(insts)
+            else:
+                self[param] = insts
+
     def __delitem__(self, key):
         del self._table[key]
         self._keys.discard(key)

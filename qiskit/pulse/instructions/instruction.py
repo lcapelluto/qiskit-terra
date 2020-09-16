@@ -25,7 +25,7 @@ import warnings
 
 from abc import ABC
 
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 import numpy as np
 
 from qiskit.circuit.parameterexpression import ParameterExpression
@@ -73,9 +73,15 @@ class Instruction(ScheduleComponent, ABC):
 
         self._channels = channels
         self._timeslots = {channel: [(0, self.duration)] for channel in channels}
-        self._operands = operands
         self._name = name
         self._hash = None
+        self._parameters = set()
+        self._operands = operands
+        for op in operands:
+            if isinstance(op, ParameterExpression):
+                self._parameters.update(op.parameters)
+            elif isinstance(op, Channel) and isinstance(channel.index, ParameterExpression):
+                self._parameters.update(channel.index.parameters)
 
     @property
     def name(self) -> str:
@@ -219,6 +225,11 @@ class Instruction(ScheduleComponent, ABC):
         time = self.ch_stop_time(*common_channels)
         return self.insert(time, schedule, name=name)
 
+    @property
+    def parameters(self) -> Set[ParameterExpression]:
+        """Return the unbound parameters associated with this instruction's operands."""
+        return self._parameters
+
     def assign_parameters(self,
                           value_dict: Dict[ParameterExpression,
                                            Union[ParameterExpression, int, float, complex]]
@@ -234,10 +245,18 @@ class Instruction(ScheduleComponent, ABC):
         """
         new_operands = list(self.operands)
 
-        for idx, op in enumerate(self.operands):
-            for parameter, value in value_dict.items():
+        for parameter, value in value_dict.items():
+            if not parameter in self.parameters:
+                continue
+            self._parameters.remove(parameter)
+            if isinstance(value, ParameterExpression):
+                self._parameters.update(value.parameters)
+
+            for idx, op in enumerate(self.operands):
+
                 if isinstance(op, ParameterExpression) and parameter in op.parameters:
                     new_operands[idx] = new_operands[idx].assign(parameter, value)
+
                 elif (isinstance(op, Channel)
                       and isinstance(op.index, ParameterExpression)
                       and parameter in op.index.parameters):
