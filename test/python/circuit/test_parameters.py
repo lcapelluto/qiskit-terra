@@ -424,6 +424,22 @@ class TestParameters(QiskitTestCase):
         cal_sched = list(circ.calibrations['custom'].values())[0]
         self.assertEqual(float(cal_sched.instructions[2][1].phase), phase)
 
+    def test_assign_calibration_parameters(self):
+        """Test that I can assign parameters in my circuit when it only applies
+        to the gate calibration, but no circuit operations.
+        """
+        alpha = Parameter('⍺')
+        beta = Parameter('beta')
+        schedule = pulse.Schedule(pulse.ShiftPhase(alpha, pulse.DriveChannel(0)))
+
+        circ = QuantumCircuit(3, 3)
+        circ.h(0)
+        circ.add_calibration('h', [0], schedule, [alpha])
+
+        circ = circ.assign_parameters({alpha: 3.14})
+        cal_sched = circ.calibrations['h'][((0,), (3.14,))]
+        self.assertEqual(float(cal_sched.instructions[0][1].phase), 3.14)
+
     def test_circuit_generation(self):
         """Test creating a series of circuits parametrically"""
         theta = Parameter('θ')

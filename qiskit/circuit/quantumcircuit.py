@@ -1878,10 +1878,25 @@ class QuantumCircuit:
         # unroll the parameter dictionary (needed if e.g. it contains a ParameterVector)
         unrolled_param_dict = self._unroll_param_dict(param_dict)
 
+
+
         # check that only existing parameters are in the parameter dictionary
         if unrolled_param_dict.keys() > self._parameter_table.keys():
-            raise CircuitError('Cannot bind parameters ({}) not present in the circuit.'.format(
-                [str(p) for p in param_dict.keys() - self._parameter_table]))
+            param_present_in_cals = False
+            # I think we need .calibration_parameters() method here
+            for val in self.calibrations.values():
+                for sched in val.values():
+                    if any(key in sched.parameters for key in unrolled_param_dict):
+                        param_present_in_cals = True
+                        break
+            if not param_present_in_cals:
+                raise CircuitError('Cannot bind parameters ({}) not present in the circuit.'.format(
+                    [str(p) for p in param_dict.keys() - self._parameter_table]))
+            else:
+                # A parameter shows up in a schedule, but not in the gates
+                for parameter, value in unrolled_param_dict.items():
+                    bound_circuit._assign_calibration_parameters(parameter, value)
+                return None if inplace else bound_circuit
 
         # replace the parameters with a new Parameter ("substitute") or numeric value ("bind")
         for parameter, value in unrolled_param_dict.items():
