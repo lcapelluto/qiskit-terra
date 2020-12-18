@@ -88,7 +88,13 @@ class MplPlotter(BasePlotter):
         for _, data in self.canvas.collections:
             xvals = data.xvals
             yvals = data.yvals
-            offsets = [self.canvas.assigned_coordinates[bit] for bit in data.bits]
+            offsets = []
+            for bit in data.bits:
+                try:
+                    v = self.canvas.assigned_coordinates[bit]
+                except KeyError:
+                    pass
+                offsets.append(v)
 
             if isinstance(data, drawings.BoxData):
                 # box data

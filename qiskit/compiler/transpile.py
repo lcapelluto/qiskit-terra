@@ -419,7 +419,7 @@ def _parse_transpile_args(circuits, backend,
     routing_method = _parse_routing_method(routing_method, num_circuits)
     translation_method = _parse_translation_method(translation_method, num_circuits)
     durations = _parse_instruction_durations(backend, instruction_durations, dt,
-                                             num_circuits)
+                                             num_circuits, circuits)
     scheduling_method = _parse_scheduling_method(scheduling_method, num_circuits)
     seed_transpiler = _parse_seed_transpiler(seed_transpiler, num_circuits)
     optimization_level = _parse_optimization_level(optimization_level, num_circuits)
@@ -623,7 +623,13 @@ def _parse_scheduling_method(scheduling_method, num_circuits):
     return scheduling_method
 
 
-def _parse_instruction_durations(backend, inst_durations, dt, num_circuits):
+def _parse_instruction_durations(backend, inst_durations, dt, num_circuits, circuits):
+    cal_durations = []
+    if circuits[0].calibrations:
+        for gate, gate_cals in circuits[0].calibrations.items():
+          for (qubits, params), schedule in gate_cals.items():
+            cal_durations.append((gate, qubits, schedule.duration))
+
     durations = None
     if inst_durations is None and backend:
         try:
@@ -634,6 +640,8 @@ def _parse_instruction_durations(backend, inst_durations, dt, num_circuits):
     else:
         durations = InstructionDurations(inst_durations,
                                          dt or getattr(inst_durations, 'dt', None))
+    
+    durations.update(cal_durations)
 
     if not isinstance(durations, list):
         durations = [durations] * num_circuits

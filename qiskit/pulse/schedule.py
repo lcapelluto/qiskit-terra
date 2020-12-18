@@ -820,16 +820,10 @@ class Schedule(abc.ABC):
             matplotlib.Figure: A matplotlib figure object of the pulse schedule.
         """
         # pylint: disable=invalid-name, cyclic-import
-        from qiskit import visualization
 
-        return visualization.pulse_drawer(self, dt=dt, style=style,
-                                          filename=filename, interp_method=interp_method,
-                                          scale=scale, channel_scales=channel_scales,
-                                          plot_all=plot_all, plot_range=plot_range,
-                                          interactive=interactive, table=table, label=label,
-                                          framechange=framechange, channels=channels,
-                                          show_framechange_channels=show_framechange_channels,
-                                          draw_title=draw_title)
+        from qiskit.visualization.pulse_v2 import draw as pulse_drawer
+
+        return pulse_drawer(self)
 
     def __eq__(self, other: Union['Schedule', Instruction]) -> bool:
         """Test if two ScheduleComponents are equal.
